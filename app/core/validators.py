@@ -1,8 +1,82 @@
+from math import isfinite
+
 from core.constants import PIPE_HIERARCHY
 from core.geometry import is_inside_polygon
 
 
 MAX_RECOMMENDED_VELOCITY_MPS = 1.5
+
+
+def coerce_number(value, field_name, allow_zero=False):
+    """Coerce user input to a float and reject anything unusable.
+
+    Guards the geometric generators against non-positive spacings, which
+    would otherwise never advance their scan loops, and against NaN and
+    infinity, which propagate silently through area and flow maths.
+
+    Returns {"ok": True, "value": number} on success, or
+    {"ok": False, "message": "..."} on failure, matching the result
+    shape used across the service layer.
+    """
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return {
+            "ok": False,
+            "message": f"{field_name} must be a number.",
+        }
+
+    if isinstance(value, bool):
+        return {
+            "ok": False,
+            "message": f"{field_name} must be a number.",
+        }
+
+    if not isfinite(number):
+        return {
+            "ok": False,
+            "message": f"{field_name} must be a finite number.",
+        }
+
+    if number < 0 or (number == 0 and not allow_zero):
+        requirement = (
+            "zero or greater" if allow_zero else "greater than zero"
+        )
+
+        return {
+            "ok": False,
+            "message": f"{field_name} must be {requirement}.",
+        }
+
+    return {"ok": True, "value": number}
+
+
+def coerce_non_negative_int(value, field_name):
+    """Coerce user input to a non-negative whole number.
+
+    Returns the same result shape as coerce_number.
+    """
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return {
+            "ok": False,
+            "message": f"{field_name} must be a whole number.",
+        }
+
+    if isinstance(value, bool):
+        return {
+            "ok": False,
+            "message": f"{field_name} must be a whole number.",
+        }
+
+    if number < 0:
+        return {
+            "ok": False,
+            "message": f"{field_name} cannot be negative.",
+        }
+
+    return {"ok": True, "value": number}
 
 
 def validate_pipe_hierarchy(parent_diameter_mm, child_diameter_mm):

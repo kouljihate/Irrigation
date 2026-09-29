@@ -186,19 +186,22 @@ def create_popup(feature):
     if feature.get("sector_id"):
         popup_html += (
             f"<small>Sector: "
-            f"{feature['sector_id']}</small><br>"
+            f"{html.escape(str(feature['sector_id']))}"
+            f"</small><br>"
         )
 
     if feature.get("zone_id"):
         popup_html += (
             f"<small>Zone: "
-            f"{feature['zone_id']}</small><br>"
+            f"{html.escape(str(feature['zone_id']))}"
+            f"</small><br>"
         )
 
     if feature.get("diameter_mm"):
         popup_html += (
             f"<small>Pipe: "
-            f"{feature['diameter_mm']} mm</small><br>"
+            f"{html.escape(str(feature['diameter_mm']))}"
+            f" mm</small><br>"
         )
 
     if description:

@@ -5,6 +5,7 @@ from shapely.geometry import LineString, mapping, shape
 from shapely.ops import transform
 
 from core.geometry import WGS84, get_transformer
+from core.validators import coerce_number
 
 
 def get_zone_by_id(project, zone_id):
@@ -96,6 +97,11 @@ def generate_row_lines(
     row_angle_degrees=0,
     headland_m=2.0,
 ):
+    if not row_spacing_m or row_spacing_m <= 0:
+        raise ValueError(
+            "Row spacing must be greater than zero."
+        )
+
     zone_polygon_wgs84 = shape(zone_geometry)
 
     if zone_polygon_wgs84.geom_type != "Polygon":
@@ -212,6 +218,32 @@ def create_rows_for_zone(
     row_angle_degrees=0,
     headland_m=2.0,
 ):
+    spacing = coerce_number(row_spacing_m, "row_spacing_m")
+
+    if not spacing["ok"]:
+        return {
+            "ok": False,
+            "message": spacing["message"],
+            "created_rows": [],
+        }
+
+    row_spacing_m = spacing["value"]
+
+    headland = coerce_number(
+        headland_m,
+        "headland_m",
+        allow_zero=True,
+    )
+
+    if not headland["ok"]:
+        return {
+            "ok": False,
+            "message": headland["message"],
+            "created_rows": [],
+        }
+
+    headland_m = headland["value"]
+
     zone = get_zone_by_id(
         project,
         zone_id,
@@ -317,6 +349,38 @@ def create_rows_for_all_zones(
     row_spacing_m,
     headland_m=2.0,
 ):
+    spacing = coerce_number(row_spacing_m, "row_spacing_m")
+
+    if not spacing["ok"]:
+        return {
+            "ok": False,
+            "message": spacing["message"],
+            "created_zone_ids": [],
+            "skipped_zone_ids": [],
+            "errors": [spacing["message"]],
+            "total_rows": 0,
+        }
+
+    row_spacing_m = spacing["value"]
+
+    headland = coerce_number(
+        headland_m,
+        "headland_m",
+        allow_zero=True,
+    )
+
+    if not headland["ok"]:
+        return {
+            "ok": False,
+            "message": headland["message"],
+            "created_zone_ids": [],
+            "skipped_zone_ids": [],
+            "errors": [headland["message"]],
+            "total_rows": 0,
+        }
+
+    headland_m = headland["value"]
+
     zones = project.get("zones", [])
 
     if not zones:

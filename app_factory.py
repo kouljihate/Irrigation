@@ -792,6 +792,11 @@ def api_update_settings():
                 "source_flow_m3h must be a number."
             )
 
+        if not isfinite(source_flow):
+            return error_response(
+                "source_flow_m3h must be a finite number."
+            )
+
         if source_flow < 0:
             return error_response(
                 "source_flow_m3h cannot be negative."
@@ -800,8 +805,12 @@ def api_update_settings():
         settings["source_flow_m3h"] = source_flow
 
     if "working_crs" in data:
+        working_crs = data["working_crs"]
+
         settings["working_crs"] = (
-            str(data["working_crs"]) or None
+            str(working_crs).strip() or None
+            if working_crs is not None
+            else None
         )
 
     save_project_to_session(project)

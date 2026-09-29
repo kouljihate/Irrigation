@@ -4,6 +4,10 @@ from shapely.geometry import Point, mapping, shape
 from shapely.ops import transform
 
 from core.geometry import WGS84, get_transformer
+from core.validators import (
+    coerce_non_negative_int,
+    coerce_number,
+)
 
 
 def get_zone_by_id(project, zone_id):
@@ -56,6 +60,11 @@ def generate_trees_on_row(
     tree_spacing_m=4.0,
     end_offset_m=2.0,
 ):
+    if not tree_spacing_m or tree_spacing_m <= 0:
+        raise ValueError(
+            "Tree spacing must be greater than zero."
+        )
+
     row_line_wgs84 = shape(row_geometry)
 
     if row_line_wgs84.geom_type != "LineString":
@@ -129,6 +138,37 @@ def create_trees_for_zone(
     emitters_per_tree=2,
     emitter_flow_lph=4.0,
 ):
+    checks = [
+        coerce_number(tree_spacing_m, "tree_spacing_m"),
+        coerce_number(
+            end_offset_m,
+            "end_offset_m",
+            allow_zero=True,
+        ),
+        coerce_non_negative_int(
+            emitters_per_tree,
+            "emitters_per_tree",
+        ),
+        coerce_number(
+            emitter_flow_lph,
+            "emitter_flow_lph",
+            allow_zero=True,
+        ),
+    ]
+
+    for check in checks:
+        if not check["ok"]:
+            return {
+                "ok": False,
+                "message": check["message"],
+                "created_trees": [],
+            }
+
+    tree_spacing_m = checks[0]["value"]
+    end_offset_m = checks[1]["value"]
+    emitters_per_tree = checks[2]["value"]
+    emitter_flow_lph = checks[3]["value"]
+
     zone = get_zone_by_id(
         project,
         zone_id,
@@ -286,6 +326,40 @@ def create_trees_for_all_zones(
     emitters_per_tree=2,
     emitter_flow_lph=4.0,
 ):
+    checks = [
+        coerce_number(tree_spacing_m, "tree_spacing_m"),
+        coerce_number(
+            end_offset_m,
+            "end_offset_m",
+            allow_zero=True,
+        ),
+        coerce_non_negative_int(
+            emitters_per_tree,
+            "emitters_per_tree",
+        ),
+        coerce_number(
+            emitter_flow_lph,
+            "emitter_flow_lph",
+            allow_zero=True,
+        ),
+    ]
+
+    for check in checks:
+        if not check["ok"]:
+            return {
+                "ok": False,
+                "message": check["message"],
+                "created_zone_ids": [],
+                "skipped_zone_ids": [],
+                "errors": [check["message"]],
+                "total_trees": 0,
+            }
+
+    tree_spacing_m = checks[0]["value"]
+    end_offset_m = checks[1]["value"]
+    emitters_per_tree = checks[2]["value"]
+    emitter_flow_lph = checks[3]["value"]
+
     zones = project.get("zones", [])
 
     if not zones:
