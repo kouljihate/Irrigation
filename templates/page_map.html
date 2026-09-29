@@ -181,7 +181,10 @@ function syncImportButton() {
     label.classList.remove('d-none');
 }
 
-$('kmlFileInput').addEventListener('change', syncImportButton);
+const fileInput = $('kmlFileInput');
+fileInput.addEventListener('change', syncImportButton);
+fileInput.addEventListener('input', syncImportButton);
+syncImportButton();
 
 async function importKml() {
     const input = $('kmlFileInput');

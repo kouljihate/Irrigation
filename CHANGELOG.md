@@ -5,6 +5,14 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.2]
+
+### Fixed
+
+- The Upload button now reliably enables when a KML file is chosen. Added
+  an `input` event listener as a fallback for browsers where `change`
+  alone does not fire, and the button state is initialized on page load.
+
 ## [2.2.1]
 
 ### Changed
