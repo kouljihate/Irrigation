@@ -458,6 +458,16 @@ def build_project_map(project):
         show=False,
     )
 
+    kml_line_layer = folium.FeatureGroup(
+        name="KML paths and canals",
+        show=True,
+    )
+
+    other_plot_layer = folium.FeatureGroup(
+        name="Other KML plots",
+        show=True,
+    )
+
     land_layer = folium.FeatureGroup(
         name="Land boundary",
         show=True,
@@ -503,6 +513,28 @@ def build_project_map(project):
             imported_layer,
             feature,
             bounds,
+        )
+
+        if feature.get("geometry", {}).get(
+            "type"
+        ) == "LineString":
+            # Paths and canals are part of the survey, so they stay
+            # visible instead of hiding in the raw KML layer.
+            draw_feature(
+                kml_line_layer,
+                feature,
+                [],
+            )
+
+    for polygon in project.get(
+        "unclassified_polygons",
+        [],
+    ):
+        # Polygons that are neither land, basin nor sector.
+        draw_feature(
+            other_plot_layer,
+            polygon,
+            [],
         )
 
     land = project.get("land")
@@ -618,6 +650,8 @@ def build_project_map(project):
             )
 
     imported_layer.add_to(farm_map)
+    kml_line_layer.add_to(farm_map)
+    other_plot_layer.add_to(farm_map)
     land_layer.add_to(farm_map)
     water_basin_layer.add_to(farm_map)
     sector_layer.add_to(farm_map)

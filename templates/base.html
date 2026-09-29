@@ -29,8 +29,11 @@
     <header class="header-neon fixed-top">
         <div class="container-fluid">
             <div class="header-inner">
-                <div class="header-col header-left"></div>
+                <div class="header-col header-left">
+                    <span class="header-en"><i class="fi fi-rr-droplet me-2"></i>FARM IRRIGATION DESIGNER</span>
+                </div>
                 <div class="header-col header-middle">
+                    <a class="body-title-home" href="/" title="Home"><i class="fi fi-rr-home"></i></a>
                     {% if auth_enabled %}
                         {% if is_authenticated %}
                             <form method="post" action="/logout" class="d-inline">
@@ -66,9 +69,9 @@
                         <li class="nav-item"><a class="nav-link" href="/page/export" title="Export"><i class="fi fi-rr-file-export"></i></a></li>
                     </ul>
                 </div>
-                <div class="nav-right">
+                <!-- <div class="nav-right">
                     <a class="nav-link" href="/page/settings" title="Settings"><i class="fi fi-rr-settings"></i></a>
-                </div>
+                </div> -->
             </div>
         </div>
     </nav>
@@ -76,8 +79,7 @@
     <div class="content-area" style="margin-top: 10px; min-height: calc(100vh - 130px);">
         <div class="container-fluid p-3">
             <div class="body-title">
-                <a class="body-title-home" href="/" title="Home"><i class="fi fi-rr-home"></i></a>
-                <span><i class="fi fi-rr-droplet me-2"></i>FARM IRRIGATION DESIGNER</span>
+                <span><i class="fi fi-rr-droplet me-2"></i>{{ page_title|default("FARM IRRIGATION DESIGNER")|upper }}</span>
             </div>
             {% block content %}{% endblock %}
         </div>

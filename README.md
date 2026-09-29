@@ -5,7 +5,7 @@ survey data. Import a KML, define land, water source, basin and sectors, then
 generate zones, planting rows, trees, pipe networks and control assemblies —
 and export the result to KML, DXF, GeoJSON, CSV and EPANET.
 
-**Version: 2.1.1** · Flask 3 + Bootstrap 5
+**Version: 2.2.0** · Flask 3 + Bootstrap 5
 
 > **Note on branches.** `main` holds the current Flask application (v2).
 > The original Streamlit prototype (v1) is preserved on the
@@ -16,7 +16,12 @@ and export the result to KML, DXF, GeoJSON, CSV and EPANET.
 ## Design workflow
 
 1. **Project storage** — create, save, load, delete and download projects.
+   Naming a project is optional: an empty name falls back to the project's
+   own name. A project that is already saved is refreshed in place whenever
+   a new KML is uploaded.
 2. **Project map** — Leaflet/MapLibre map with the imported KML features.
+   Every element read from the file is drawn: land, sectors, basins, water
+   points, remaining plots, paths and canals.
 3. **Land & sectors** — set the land boundary, water point and basin, then
    add and number sectors.
 4. **Zones** — create zones per sector, or auto-generate three per sector.
@@ -102,7 +107,7 @@ setting `KML_PASSWORD`.
 | `/api/project` | `GET` | Read project state |
 | `/api/project` | `PUT` | Replace project state (disable via `KML_ALLOW_MUTATION=0`) |
 | `/api/project/new` | `POST` | Create an empty project |
-| `/api/project/save` | `POST` | Persist the project |
+| `/api/project/save` | `POST` | Persist the project. `name` may be empty. |
 | `/api/project/load/<file_name>` | `POST` | Load a saved project |
 | `/api/project/delete/<file_name>` | `POST` | Delete a saved project |
 | `/api/project/list` | `GET` | List saved projects |
@@ -140,6 +145,10 @@ Accepted by `POST /api/action/<action_name>`:
 `create_principal_route`, `remove_principal_route`, `create_sector_pipes_all`,
 `remove_all_sector_pipes`, `create_driplines_all`, `remove_all_driplines`,
 `create_control_assemblies_all`, `recalculate_pipe_flows`, `set_source_flow`.
+
+`import_kml` reads the file, classifies it and draws it on the map. If the
+session already has a saved, named project, the saved file is updated in
+place and the response carries `saved_project_file`.
 
 ## Architecture
 

@@ -143,6 +143,15 @@ def extract_kml_features(kml_bytes):
                 "description": description,
                 "folder": folder_name,
                 "entity_type": "imported_line",
+                "length_m": round(
+                    line_length_m({
+                        "geometry": {
+                            "type": "LineString",
+                            "coordinates": coordinates,
+                        },
+                    }),
+                    2,
+                ),
                 "geometry": {
                     "type": "LineString",
                     "coordinates": coordinates,
@@ -170,6 +179,15 @@ def extract_kml_features(kml_bytes):
                 "description": description,
                 "folder": folder_name,
                 "entity_type": "imported_polygon",
+                "area_m2": round(
+                    polygon_area_m2({
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [coordinates],
+                        },
+                    }),
+                    2,
+                ),
                 "geometry": {
                     "type": "Polygon",
                     "coordinates": [coordinates],
@@ -189,6 +207,20 @@ def polygon_area_m2(feature):
 
     try:
         return measure_area_m2(geometry)
+    except Exception:
+        return 0.0
+
+
+def line_length_m(feature):
+    from core.geometry import measure_length_m
+
+    geometry = feature.get("geometry")
+
+    if not geometry or geometry.get("type") != "LineString":
+        return 0.0
+
+    try:
+        return measure_length_m(geometry)
     except Exception:
         return 0.0
 

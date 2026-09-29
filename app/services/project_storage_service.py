@@ -99,19 +99,43 @@ def prepare_project_for_save(project):
     return project_copy
 
 
-def save_project(project, project_name=None):
+def save_project(project, project_name=None, file_name=None):
+    """Write a project to disk.
+
+    The name is optional: when it is empty the project's own name is used,
+    and when the project has no usable name the file falls back to
+    ``farm_irrigation_project.json``. Pass ``file_name`` to update a
+    specific saved file in place instead of deriving one from the name.
+    """
+
     ensure_projects_directory()
 
-    if project_name is None:
-        project_name = project.get(
-            "project",
-            {},
-        ).get(
-            "name",
-            "farm_irrigation_project",
+    if file_name:
+        requested_path, error = resolve_project_path(
+            file_name
         )
 
-    file_path = get_project_file_path(project_name)
+        if error:
+            return {
+                "ok": False,
+                "message": error["message"],
+                "file_name": None,
+                "file_path": None,
+            }
+
+        file_path = requested_path
+
+    else:
+        if project_name is None:
+            project_name = project.get(
+                "project",
+                {},
+            ).get(
+                "name",
+                "farm_irrigation_project",
+            )
+
+        file_path = get_project_file_path(project_name)
 
     project_to_save = prepare_project_for_save(
         project
@@ -134,7 +158,10 @@ def save_project(project, project_name=None):
 
     return {
         "ok": True,
-        "message": "Project saved successfully.",
+        "message": (
+            "Project saved successfully as "
+            f"{file_path.name}."
+        ),
         "file_name": file_path.name,
         "file_path": str(file_path),
     }

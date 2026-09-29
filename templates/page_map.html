@@ -9,20 +9,23 @@
                 <div class="card-body">
                     <h5 class="card-title bilingual-card-title"><span class="en">Import KML</span><span class="ar">استيراد KML</span></h5>
                     <input type="file" id="kmlFileInput" accept=".kml" class="form-control mb-2">
-                    <button class="btn btn-primary w-100" id="importKmlBtn"><i class="fi fi-rr-upload me-1"></i>Import</button>
+                    <div class="small text-muted mb-2" id="kmlSelectedFile">No file selected.</div>
+                    <div class="small text-muted mb-2" id="kmlProjectState"></div>
+                    <button class="btn btn-primary w-100" id="importKmlBtn"><i class="fi fi-rr-upload me-1"></i>Upload and Draw</button>
                     <div id="kmlStatus" class="mt-2"></div>
+                </div>
+            </div>
+            <div class="card mt-3" id="kmlDetailCard" style="display:none;">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">File Contents</span><span class="ar">محتويات الملف</span></h5>
+                    <div id="kmlDetailInfo"></div>
                 </div>
             </div>
             <div class="card mt-3">
                 <div class="card-body">
                     <h5 class="card-title bilingual-card-title"><span class="en">Imported KML Features</span><span class="ar">ميزات KML المستوردة</span></h5>
-                    <div id="kmlFeaturesList"><p class="text-muted">No KML features imported yet.</p></div>
-                </div>
-            </div>
-            <div class="card mt-3" id="kmlDetailCard" style="display:none;">
-                <div class="card-body">
-                    <h5 class="card-title bilingual-card-title"><span class="en">KML Details</span><span class="ar">تفاصيل KML</span></h5>
-                    <div id="kmlDetailInfo"></div>
+                    <div class="small text-muted mb-2" id="kmlFeaturesCount"></div>
+                    <div id="kmlFeaturesList" style="max-height:520px; overflow-y:auto;"><p class="text-muted">No KML features imported yet.</p></div>
                 </div>
             </div>
         </div>
@@ -30,6 +33,7 @@
             <div class="card">
                 <div class="card-body">
                     <h5 class="card-title bilingual-card-title"><span class="en">Farm Map</span><span class="ar">خريطة المزرعة</span></h5>
+                    <p class="small text-muted bilingual"><span class="en">Every element read from the KML is drawn here: land, sectors, basins, water points, plots, paths and canals, plus any zones, rows, trees and pipes already designed.</span><span class="ar">تُرسم هنا كل عناصر الملف: الأرض والقطاعات والأحواض ونقاط الماء والقطع والمسارات والقنوات، إضافة إلى المناطق والصفوف والأشجار والأنابيب.</span></p>
                     <iframe id="mapFrame" src="/api/leaflet-map" title="Farm map" style="width:100%; height:600px; border:none;"></iframe>
                 </div>
             </div>
@@ -40,15 +44,64 @@
 {% block extra_js %}
 <script>
 const esc = window.KML.escapeHtml;
+const $ = (id) => document.getElementById(id);
+
+function formatArea(m2) {
+    const value = Number(m2) || 0;
+    if (value >= 1000000) { return (value / 1000000).toFixed(2) + ' km²'; }
+    if (value >= 10000) { return (value / 10000).toFixed(2) + ' ha'; }
+    return value.toFixed(0) + ' m²';
+}
+
+function formatLength(m) {
+    const value = Number(m) || 0;
+    if (value >= 1000) { return (value / 1000).toFixed(2) + ' km'; }
+    return value.toFixed(1) + ' m';
+}
+
+function formatSize(bytes) {
+    const value = Number(bytes) || 0;
+    if (value >= 1048576) { return (value / 1048576).toFixed(2) + ' MB'; }
+    if (value >= 1024) { return (value / 1024).toFixed(1) + ' kB'; }
+    return value + ' B';
+}
+
+function detailLines(feature) {
+    const lines = [];
+    const geometry = feature.geometry || {};
+    const coordinates = geometry.coordinates;
+    const count = Array.isArray(coordinates)
+        ? (geometry.type === 'Polygon' ? coordinates[0].length : coordinates.length)
+        : 0;
+
+    if (feature.folder) { lines.push('Folder: ' + feature.folder); }
+    if (feature.entity_type) { lines.push('Type: ' + feature.entity_type.replace(/_/g, ' ')); }
+    lines.push('Points: ' + count);
+
+    if (feature.area_m2) { lines.push('Area: ' + formatArea(feature.area_m2)); }
+    if (feature.length_m) { lines.push('Length: ' + formatLength(feature.length_m)); }
+
+    if (geometry.type === 'Point' && Array.isArray(coordinates) && coordinates.length >= 2) {
+        lines.push('Position: ' + Number(coordinates[1]).toFixed(6) + ', ' + Number(coordinates[0]).toFixed(6));
+        if (coordinates.length >= 3 && coordinates[2]) { lines.push('Altitude: ' + coordinates[2] + ' m'); }
+    }
+
+    if (feature.description) { lines.push('Note: ' + feature.description); }
+
+    return lines;
+}
 
 function showKmlDetails(data) {
-    const card = document.getElementById('kmlDetailCard');
-    const info = document.getElementById('kmlDetailInfo');
+    const card = $('kmlDetailCard');
+    const info = $('kmlDetailInfo');
     card.style.display = 'block';
     const rows = [];
     const add = (label, value) => rows.push(
         '<div class="d-flex align-items-center mb-1"><span class="badge bg-neon me-2">' + esc(label) + '</span><span>' + esc(value) + '</span></div>'
     );
+    add('FILE', data.file_name || '—');
+    add('SIZE', data.file_size || '—');
+    add('FEATURES', (data.feature_count || 0) + ' total');
     add('POINT', (data.point_count || 0) + ' point feature(s)');
     add('LINE', (data.line_count || 0) + ' path(s)/canal(s)');
     add('POLYGON', (data.polygon_count || 0) + ' polygon(s)');
@@ -56,40 +109,81 @@ function showKmlDetails(data) {
     add('WATER', (data.water_point_count || 0) + ' water point(s)');
     add('BASIN', (data.basin_count || 0) + ' basin(s)');
     add('SECTOR', (data.sector_count || 0) + ' sector(s)');
+    add('OTHER', (data.unclassified_polygon_count || 0) + ' plot(s) left to assign');
+
+    if (data.saved_project_file) {
+        rows.push('<hr><div class="small text-success"><i class="fi fi-rr-refresh me-1"></i>Saved project ' +
+            esc(data.saved_project_file) + ' was updated with this KML.</div>');
+    } else {
+        rows.push('<hr><div class="small text-muted">Save the project on the Storage page to keep this KML on disk.</div>');
+    }
+
     info.innerHTML = rows.join('');
 }
 
 async function loadFeatures() {
     const data = await window.KML.apiFetch('/api/project');
     const features = data.kml_features || [];
-    const container = document.getElementById('kmlFeaturesList');
+    const container = $('kmlFeaturesList');
+    const counter = $('kmlFeaturesCount');
+    const meta = data.project || {};
 
-    if (features.length === 0) {
+    $('kmlProjectState').textContent = meta.saved_file
+        ? 'Project "' + (meta.name || 'unnamed') + '" is saved as ' + meta.saved_file + ' — the upload will update it.'
+        : 'This project is not saved yet, so the KML stays in this session.';
+
+    if (!features.length) {
         container.innerHTML = '<p class="text-muted">No KML features imported yet.</p>';
+        counter.textContent = '';
         return;
     }
 
-    container.innerHTML = features.map(f => {
-        const coordinates = f.geometry && f.geometry.coordinates;
-        const count = Array.isArray(coordinates) ? coordinates.length : 0;
-        return '<div class="d-flex align-items-center mb-1 p-2" style="background:rgba(0,240,255,0.05);border-radius:var(--dark-radius);">' +
-            '<span class="badge bg-neon me-2">' + esc(f.geometry?.type || 'Unknown') + '</span>' +
-            '<div><strong>' + esc(f.name || f.id || 'Unnamed') + '</strong><br>' +
-            '<small class="text-muted">' + esc(f.id || '') + ' | ' + count + ' coords</small></div>' +
+    counter.textContent = features.length + ' feature(s) read from the file. Click a name to see its details.';
+
+    container.innerHTML = features.map((f, index) => {
+        const geometryType = (f.geometry && f.geometry.type) || 'Unknown';
+        return '<div class="mb-2 p-2" style="background:rgba(0,240,255,0.05);border-radius:var(--dark-radius);">' +
+            '<div class="d-flex align-items-center">' +
+                '<span class="badge bg-neon me-2">' + esc(geometryType) + '</span>' +
+                '<strong class="flex-grow-1" role="button" data-kml-feature="' + index + '">' +
+                    esc(f.name || f.id || 'Unnamed') +
+                '</strong>' +
+            '</div>' +
+            '<small class="text-muted">' + esc(f.id || '') + '</small>' +
+            '<div class="small text-muted d-none" data-kml-detail="' + index + '">' +
+                detailLines(f).map(line => esc(line)).join('<br>') +
+            '</div>' +
         '</div>';
     }).join('');
 }
 
+$('kmlFeaturesList').addEventListener('click', (event) => {
+    const trigger = event.target.closest('[data-kml-feature]');
+    if (!trigger) { return; }
+    const panel = document.querySelector('[data-kml-detail="' + trigger.getAttribute('data-kml-feature') + '"]');
+    if (panel) { panel.classList.toggle('d-none'); }
+});
+
+$('kmlFileInput').addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    const label = $('kmlSelectedFile');
+    label.textContent = file
+        ? 'Selected: ' + file.name + ' (' + formatSize(file.size) + ')'
+        : 'No file selected.';
+});
+
 async function importKml() {
-    const input = document.getElementById('kmlFileInput');
+    const input = $('kmlFileInput');
     if (!input.files.length) {
         window.KML.toast('Please select a KML file first.', 'warning');
         return;
     }
 
     const file = input.files[0];
-    const status = document.getElementById('kmlStatus');
+    const status = $('kmlStatus');
+    const button = $('importKmlBtn');
     status.innerHTML = '';
+    button.disabled = true;
 
     try {
         const buffer = await file.arrayBuffer();
@@ -97,11 +191,13 @@ async function importKml() {
             kml_bytes: arrayBufferToBase64(buffer)
         });
         status.innerHTML = '<div class="alert alert-success">' + esc(data.message) + '</div>';
-        showKmlDetails(data);
+        showKmlDetails(Object.assign({ file_name: file.name, file_size: formatSize(file.size) }, data));
         window.KML.reloadMap('mapFrame');
         await loadFeatures();
     } catch (error) {
         status.innerHTML = '<div class="alert alert-danger">' + esc(error.message) + '</div>';
+    } finally {
+        button.disabled = false;
     }
 }
 
@@ -115,7 +211,7 @@ function arrayBufferToBase64(buffer) {
     return btoa(binary);
 }
 
-document.getElementById('importKmlBtn').addEventListener('click', importKml);
+$('importKmlBtn').addEventListener('click', importKml);
 
 loadFeatures();
 </script>

@@ -75,6 +75,12 @@ app.config["SESSION_COOKIE_SECURE"] = bool(
     os.environ.get("KML_HTTPS_ONLY")
 )
 
+@app.after_request
+def prevent_html_caching(response):
+    if response.mimetype == "text/html":
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
 app.config["KML_PASSWORD"] = os.environ.get("KML_PASSWORD")
 app.config["KML_ALLOW_MUTATION"] = os.environ.get(
     "KML_ALLOW_MUTATION",
@@ -87,7 +93,7 @@ PROTECTED_ENDPOINTS = {
     "export",
 }
 
-APP_VERSION = "2.1.1"
+APP_VERSION = "2.2.0"
 
 THEME_NAMES = [
     "cyber-dark",
@@ -154,6 +160,55 @@ def save_project_to_session(project):
     ).isoformat()
 
     write_state(session, "farm_project", project)
+
+
+def get_saved_project_file():
+    """Name of the project file this session already saved, if any."""
+
+    return read_state(session, "saved_project_file")
+
+
+def remember_saved_project(file_name):
+    write_state(session, "saved_project_file", file_name)
+
+
+def forget_saved_project():
+    write_state(session, "saved_project_file", None)
+
+
+def sync_saved_project(project):
+    """Update the on-disk project after it was imported into a saved project.
+
+    Returns the file name that was updated, or None when the project has
+    never been saved. A project that is named and already on disk is
+    refreshed in place instead of being saved a second time.
+    """
+
+    file_name = get_saved_project_file()
+
+    if not file_name:
+        return None
+
+    if not str(
+        project.get("project", {}).get("name") or ""
+    ).strip():
+        return None
+
+    from services.project_storage_service import (
+        save_project,
+    )
+
+    result = save_project(project, file_name=file_name)
+
+    if not result["ok"]:
+        app.logger.warning(
+            "Could not update the saved project: %s",
+            result["message"],
+        )
+
+        return None
+
+    return result["file_name"]
 
 
 def error_response(message, status_code=400):
@@ -280,6 +335,7 @@ def api_save_project():
 def api_new_project():
     write_state(session, "farm_project", create_empty_project())
     write_state(session, "project_history", [])
+    forget_saved_project()
 
     return jsonify({
         "ok": True,
@@ -291,7 +347,7 @@ def api_new_project():
 @login_required
 def api_save_to_file():
     data = request.get_json(silent=True) or {}
-    project_name = data.get("name")
+    project_name = str(data.get("name") or "").strip()
 
     project = get_project()
 
@@ -302,7 +358,14 @@ def api_save_to_file():
         save_project,
     )
 
-    result = save_project(project, project_name)
+    result = save_project(project, project_name or None)
+
+    if not result["ok"]:
+        return error_response(result["message"])
+
+    project["project"]["saved_file"] = result["file_name"]
+    save_project_to_session(project)
+    remember_saved_project(result["file_name"])
 
     return jsonify(result)
 
@@ -318,8 +381,10 @@ def api_load_project(file_name):
 
     if result["ok"]:
         project = ensure_project_shape(result["project"])
+        project["project"]["saved_file"] = file_name
         save_project_to_session(project)
         write_state(session, "project_history", [])
+        remember_saved_project(file_name)
 
         return jsonify({
             "ok": True,
@@ -339,6 +404,13 @@ def api_delete_project(file_name):
     result = delete_saved_project(file_name)
 
     if result["ok"]:
+        if get_saved_project_file() == file_name:
+            forget_saved_project()
+
+            project = get_project()
+            project.get("project", {}).pop("saved_file", None)
+            save_project_to_session(project)
+
         return jsonify(result)
 
     return error_response(result["message"])
@@ -545,10 +617,20 @@ def _run_action(action_name, data):
 
     save_project_to_session(project)
 
+    updated_file = None
+
+    if action_name == "import_kml":
+        # A project that was already saved is refreshed in place, so the
+        # KML data never has to be uploaded a second time.
+        updated_file = sync_saved_project(project)
+
     if isinstance(result, Response):
         return result
 
     if isinstance(result, dict):
+        if updated_file:
+            result["saved_project_file"] = updated_file
+
         return jsonify(result)
 
     return jsonify({

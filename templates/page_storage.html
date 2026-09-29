@@ -10,13 +10,15 @@
                 <div class="card-body">
                     <h5 class="card-title bilingual-card-title"><span class="en">Current Project</span><span class="ar">المشروع الحالي</span></h5>
                     <div class="mb-2">
-                        <label class="form-label bilingual-label" for="projectNameInput"><span class="en">Project Name</span><span class="ar">اسم المشروع</span></label>
-                        <input type="text" id="projectNameInput" class="form-control" autocomplete="off">
+                        <label class="form-label bilingual-label" for="projectNameInput"><span class="en">Project Name <small class="text-muted">(optional)</small></span><span class="ar">اسم المشروع <small class="text-muted">(اختياري)</small></span></label>
+                        <input type="text" id="projectNameInput" class="form-control" autocomplete="off" placeholder="Leave empty to use the current name">
                     </div>
                     <div class="small text-muted mb-2" id="projectMeta"></div>
                     <div class="d-flex gap-2 mb-1">
                         <button class="btn btn-primary flex-fill" data-action="save"><i class="fi fi-rr-disk me-1"></i>Save</button>
+                        <button class="btn btn-outline-secondary flex-fill" data-action="new"><i class="fi fi-rr-add me-1"></i>New</button>
                     </div>
+                    <div class="small text-muted">Naming the project is optional. Saved projects are refreshed automatically when a new KML is uploaded.</div>
                     <div id="storageResult"></div>
                 </div>
             </div>
@@ -92,6 +94,7 @@ async function loadProjectMeta() {
     $('projectMeta').textContent = [
         'ID: ' + (meta.project_id || '-'),
         'Updated: ' + (formatDate(meta.updated_utc) || '-'),
+        meta.saved_file ? 'Saved as: ' + meta.saved_file : 'Not saved yet',
     ].join('  |  ');
 }
 
@@ -125,7 +128,6 @@ document.addEventListener('click', async (event) => {
 
         if (action === 'save') {
             const name = $('projectNameInput').value.trim();
-            if (!name) { window.KML.toast('Enter a project name.', 'warning'); return; }
             const result = await window.KML.apiFetch('/api/project/save', { method: 'POST', body: { name: name } });
             renderResult(result);
             await refreshAll();

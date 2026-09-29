@@ -5,6 +5,44 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0]
+
+Optional project saving, a KML upload that reports and draws everything it
+reads, and the brand title back in the header.
+
+### Added
+
+- The map page reports what it read from the uploaded file: the file name
+  and size, the total feature count split into points, lines and polygons,
+  the land, water points, basins and sectors it detected, and the polygons
+  still waiting to be assigned. Every feature in the list expands to show
+  its folder, type, point count, area or length, coordinates, altitude and
+  description. Polygons and lines now carry an `area_m2` and a `length_m`
+  computed during the import, so the figures are measured on the server
+  instead of guessed in the browser.
+- The map draws every element read from the KML. Paths and canals, and the
+  polygons that are neither land, basin nor sector, existed only in the
+  hidden raw-KML layer; each now has its own visible layer.
+- An uploaded KML updates the saved project. When the project has a name
+  and was already saved in this session, `import_kml` rewrites that same
+  file in place instead of leaving the saved copy stale, and reports the
+  file it touched in `saved_project_file`.
+
+### Changed
+
+- Naming a project is optional. An empty name falls back to the project's
+  own name, and then to `farm_irrigation_project.json`. The Storage page
+  shows which file the project is saved as, and the New project button is
+  back on the page.
+- The brand title is back in the header, and the body title now shows the
+  page name instead of repeating the brand. The browser tab title is
+  unchanged.
+
+### Fixed
+
+- HTML responses carry `Cache-Control: no-store`, so a reloaded page always
+  shows the current template and the current project state.
+
 ## [2.1.1]
 
 ### Changed
