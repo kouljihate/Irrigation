@@ -1,6 +1,8 @@
 import html
+import json
 
 import folium
+from branca.element import MacroElement, Template
 
 
 MAP_STYLES = {
@@ -213,6 +215,116 @@ def create_popup(feature):
         popup_html,
         max_width=350,
     )
+
+
+TREE_CANVAS_THRESHOLD = 2000
+
+
+class TreeCanvasLayer(MacroElement):
+    """Draws every tree on one canvas instead of one Leaflet marker each."""
+
+    _template = Template(
+        """
+        {% macro script(this, kwargs) %}
+        (function () {
+            var points = {{ this.points }};
+            var owner = {{ this._parent.get_name() }};
+
+            if (!points.length) { return; }
+
+            var TreeCanvas = L.Layer.extend({
+                onAdd: function (target) {
+                    this._map = target;
+                    this._canvas = L.DomUtil.create('canvas', 'leaflet-tree-canvas');
+                    this._ctx = this._canvas.getContext('2d');
+                    target.getPanes().overlayPane.appendChild(this._canvas);
+                    this._onViewChange = this._redraw.bind(this);
+                    target.on('moveend zoomend resize', this._onViewChange);
+                    this._redraw();
+                },
+                onRemove: function (target) {
+                    target.off('moveend zoomend resize', this._onViewChange);
+                    this._canvas.remove();
+                },
+                _redraw: function () {
+                    var target = this._map;
+                    if (!target) { return; }
+
+                    var size = target.getSize();
+                    var ratio = window.devicePixelRatio || 1;
+                    var canvas = this._canvas;
+
+                    canvas.width = size.x * ratio;
+                    canvas.height = size.y * ratio;
+                    canvas.style.width = size.x + 'px';
+                    canvas.style.height = size.y + 'px';
+                    L.DomUtil.setPosition(
+                        canvas,
+                        target.containerPointToLayerPoint([0, 0])
+                    );
+
+                    var context = this._ctx;
+                    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+                    context.clearRect(0, 0, size.x, size.y);
+                    context.fillStyle = {{ this.color }};
+                    context.beginPath();
+
+                    for (var i = 0; i < points.length; i++) {
+                        var point = target.latLngToContainerPoint(points[i]);
+                        if (point.x < -4 || point.y < -4 ||
+                            point.x > size.x + 4 || point.y > size.y + 4) {
+                            continue;
+                        }
+                        context.moveTo(point.x + {{ this.radius }}, point.y);
+                        context.arc(point.x, point.y, {{ this.radius }}, 0, Math.PI * 2);
+                    }
+
+                    context.fill();
+                }
+            });
+
+            var layer = new TreeCanvas();
+            owner.addLayer(layer);
+            owner.tree_canvas_layer = layer;
+        })();
+        {% endmacro %}
+        """
+    )
+
+    def __init__(
+        self,
+        points,
+        color="#00c853",
+        radius=3,
+    ):
+        super().__init__()
+        self.points = json.dumps(points, separators=(",", ":"))
+        self.color = json.dumps(color)
+        self.radius = radius
+
+
+def tree_points(trees):
+    coordinates = []
+
+    for tree in trees:
+        geometry = tree.get(
+            "geometry",
+            {},
+        )
+
+        if geometry.get("type") != "Point":
+            continue
+
+        point = geometry.get("coordinates") or []
+
+        if len(point) < 2:
+            continue
+
+        coordinates.append(
+            [point[1], point[0]]
+        )
+
+    return coordinates
 
 
 def draw_feature(
@@ -472,15 +584,38 @@ def build_project_map(project):
             bounds,
         )
 
-    for tree in project.get(
+    trees = project.get(
         "trees",
         [],
-    ):
-        draw_feature(
-            row_layer,
-            tree,
-            bounds,
+    )
+
+    tree_coordinates = tree_points(trees)
+
+    if len(tree_coordinates) > TREE_CANVAS_THRESHOLD:
+        latitudes = [point[0] for point in tree_coordinates]
+        longitudes = [point[1] for point in tree_coordinates]
+
+        bounds.extend(
+            [
+                [min(latitudes), min(longitudes)],
+                [max(latitudes), max(longitudes)],
+            ]
         )
+
+        row_layer.add_child(
+            TreeCanvasLayer(
+                tree_coordinates,
+                color=MAP_STYLES.get("tree", {}).get("color", "#00c853"),
+                radius=MAP_STYLES.get("tree", {}).get("radius", 7) / 2.4,
+            )
+        )
+    else:
+        for tree in trees:
+            draw_feature(
+                row_layer,
+                tree,
+                bounds,
+            )
 
     imported_layer.add_to(farm_map)
     land_layer.add_to(farm_map)

@@ -33,7 +33,7 @@
                     <span class="header-en"><i class="fi fi-rr-droplet me-2"></i>FARM IRRIGATION DESIGNER</span>
                 </div>
                 <div class="header-col header-middle">
-                    <span class="header-title">{{ page_title|default("FARM IRRIGATION DESIGNER")|upper }}</span>
+                    <a class="header-btn" href="/" title="Home"><i class="fi fi-rr-home"></i></a>
                     {% if auth_enabled %}
                         {% if is_authenticated %}
                             <form method="post" action="/logout" class="d-inline">
@@ -54,9 +54,6 @@
     <nav class="nav-neon fixed-top">
         <div class="container-fluid">
             <div class="nav-inner">
-                <div class="nav-left">
-                    <a class="nav-link" href="/"><i class="fi fi-rr-home"></i></a>
-                </div>
                 <div class="nav-center">
                     <ul class="navbar-nav mb-0 nav-center">
                         <li class="nav-item"><a class="nav-link" href="/page/storage" title="Storage"><i class="fi fi-rr-folder-open"></i></a></li>
@@ -81,6 +78,7 @@
 
     <div class="content-area" style="margin-top: 10px; min-height: calc(100vh - 130px);">
         <div class="container-fluid p-3">
+            <div class="body-title">{{ page_title|default("FARM IRRIGATION DESIGNER")|upper }}</div>
             {% block content %}{% endblock %}
         </div>
     </div>
@@ -110,16 +108,37 @@
     window.KML = (function () {
         var pending = 0;
         var overlay = document.getElementById('loading-overlay');
+        var watchdog = null;
+
+        // Failsafe: the overlay disables pointer events on the whole page
+        // while body.loading is set, so a counter that can never reach
+        // zero would leave the app permanently unusable. Force-clear it
+        // if it stays stuck.
+        var WATCHDOG_MS = 30000;
+
+        function armWatchdog() {
+            if (watchdog) { window.clearTimeout(watchdog); }
+
+            watchdog = window.setTimeout(function () {
+                watchdog = null;
+                pending = 0;
+                document.body.classList.remove('loading');
+                overlay.classList.remove('active');
+            }, WATCHDOG_MS);
+        }
 
         function showLoading() {
             pending += 1;
             document.body.classList.add('loading');
             overlay.classList.add('active');
+            armWatchdog();
         }
 
         function hideLoading() {
             pending = Math.max(0, pending - 1);
+
             if (pending === 0) {
+                if (watchdog) { window.clearTimeout(watchdog); watchdog = null; }
                 document.body.classList.remove('loading');
                 overlay.classList.remove('active');
             }
@@ -201,27 +220,12 @@
             });
         }
 
-        document.addEventListener('click', function (e) {
-            var target = e.target.closest('button, input[type="submit"], a.btn, .btn-icon');
-            if (target && !target.disabled) { showLoading(); }
-        }, true);
-
-        document.addEventListener('submit', function (e) {
-            if (e.target.closest('form')) { showLoading(); }
-        }, true);
-
-        window.addEventListener('load', function () {
-            window.setTimeout(hideLoading, 500);
-        });
-
-        var _origFetch = window.fetch;
-        window.fetch = function () {
-            var args = arguments;
-            showLoading();
-            return _origFetch.apply(this, args).finally(function () {
-                window.setTimeout(hideLoading, 250);
-            });
-        };
+        // The overlay is driven solely by apiFetch, which shows before the
+        // request and hides in a finally block. Nothing else may touch the
+        // counter: body.loading disables pointer events across the whole
+        // page, so a showLoading() without a matching hideLoading() would
+        // leave the app permanently unusable. The 30s watchdog above is the
+        // only other thing that can clear it.
 
         return {
             toast: toast,

@@ -93,8 +93,6 @@ async function importKml() {
 
     try {
         const buffer = await file.arrayBuffer();
-        const bytes = window.KML.escapeHtml;
-        void bytes;
         const data = await window.KML.action('import_kml', {
             kml_bytes: arrayBufferToBase64(buffer)
         });
@@ -118,9 +116,6 @@ function arrayBufferToBase64(buffer) {
 }
 
 document.getElementById('importKmlBtn').addEventListener('click', importKml);
-document.getElementById('kmlFileInput').addEventListener('change', function () {
-    if (this.files.length) { importKml(); }
-});
 
 loadFeatures();
 </script>
