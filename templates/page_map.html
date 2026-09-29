@@ -8,7 +8,7 @@
             <div class="card">
                 <div class="card-body">
                     <h5 class="card-title bilingual-card-title"><span class="en">Import KML</span><span class="ar">استيراد KML</span></h5>
-                    <input type="file" id="kmlFileInput" accept=".kml" class="form-control mb-2">
+                    <input type="file" id="kmlFileInput" accept=".kml" class="form-control mb-2" onchange="syncImportButton()">
                     <div class="small text-muted mb-2" id="kmlSelectedFile">No file selected.</div>
                     <div class="small text-muted mb-2" id="kmlProjectState"></div>
                     <button class="btn btn-primary w-100" id="importKmlBtn" disabled><i class="fi fi-rr-upload me-1"></i>Upload and Draw</button>

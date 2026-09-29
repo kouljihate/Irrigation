@@ -5,6 +5,15 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.4]
+
+### Fixed
+
+- The Upload button now enables immediately when a KML file is chosen.
+  Added an inline `onchange="syncImportButton()"` on the file input as the
+  primary trigger, with the DOM-ready listener as a fallback. This works
+  reliably even if the script block executes before the element exists.
+
 ## [2.2.3]
 
 ### Fixed
