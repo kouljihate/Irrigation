@@ -5,6 +5,18 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.5]
+
+### Added
+
+- Structured action logging to `data/logs/actions.log` with rotation
+  (5 MB files, 5 backups). Every API action now logs a JSON line with
+  timestamp, action name, project_id, user, status (started/completed/
+  error/rejected) and parameter details. Logged actions include:
+  `import_kml`, all design actions via `/api/action/`, and project
+  management endpoints (`project_new`, `project_save`, `project_load`,
+  `project_delete`, `project_list`).
+
 ## [2.2.4]
 
 ### Fixed

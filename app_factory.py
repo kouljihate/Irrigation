@@ -1,4 +1,6 @@
 import json
+import logging
+import logging.handlers
 import os
 import platform
 import sys
@@ -51,6 +53,38 @@ def _resolve_secret_key():
     return "farm-irrigation-designer-local-dev-key"
 
 
+def _configure_logging(app):
+    """Set up structured file logging for actions and errors."""
+
+    log_dir = os.path.join(project_root, "data", "logs")
+    os.makedirs(log_dir, exist_ok=True)
+
+    log_file = os.path.join(log_dir, "actions.log")
+
+    handler = logging.handlers.RotatingFileHandler(
+        log_file,
+        maxBytes=5 * 1024 * 1024,
+        backupCount=5,
+        encoding="utf-8",
+    )
+
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)s %(name)s %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S%z",
+    )
+    handler.setFormatter(formatter)
+
+    action_logger = logging.getLogger("actions")
+    action_logger.setLevel(logging.INFO)
+    action_logger.addHandler(handler)
+    action_logger.propagate = False
+
+    app.logger.addHandler(handler)
+    app.logger.setLevel(logging.INFO)
+
+    return action_logger
+
+
 app = Flask(
     __name__,
     template_folder=os.path.join(project_root, "templates"),
@@ -75,6 +109,27 @@ app.config["SESSION_COOKIE_SECURE"] = bool(
     os.environ.get("KML_HTTPS_ONLY")
 )
 
+action_logger = _configure_logging(app)
+
+
+def log_action(action, project_id=None, user=None, status="started", details=None):
+    """Log a user action with structured data."""
+
+    if details is None:
+        details = {}
+
+    log_entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "action": action,
+        "project_id": project_id,
+        "user": user or (session.get("user") if session else None),
+        "status": status,
+        "details": details,
+    }
+
+    action_logger.info(json.dumps(log_entry, ensure_ascii=False))
+
+
 @app.after_request
 def prevent_html_caching(response):
     if response.mimetype == "text/html":
@@ -93,7 +148,7 @@ PROTECTED_ENDPOINTS = {
     "export",
 }
 
-APP_VERSION = "2.2.4"
+APP_VERSION = "2.2.5"
 
 THEME_NAMES = [
     "cyber-dark",
@@ -330,19 +385,6 @@ def api_save_project():
     })
 
 
-@app.route("/api/project/new", methods=["POST"])
-@login_required
-def api_new_project():
-    write_state(session, "farm_project", create_empty_project())
-    write_state(session, "project_history", [])
-    forget_saved_project()
-
-    return jsonify({
-        "ok": True,
-        "message": "New project created.",
-    })
-
-
 @app.route("/api/project/save", methods=["POST"])
 @login_required
 def api_save_to_file():
@@ -350,6 +392,7 @@ def api_save_to_file():
     project_name = str(data.get("name") or "").strip()
 
     project = get_project()
+    project_id = project.get("project", {}).get("project_id")
 
     if project_name:
         project["project"]["name"] = project_name
@@ -361,11 +404,14 @@ def api_save_to_file():
     result = save_project(project, project_name or None)
 
     if not result["ok"]:
+        log_action("project_save", project_id=project_id, status="failed", details={"message": result["message"]})
         return error_response(result["message"])
 
     project["project"]["saved_file"] = result["file_name"]
     save_project_to_session(project)
     remember_saved_project(result["file_name"])
+
+    log_action("project_save", project_id=project_id, status="completed", details={"file_name": result["file_name"]})
 
     return jsonify(result)
 
@@ -373,6 +419,9 @@ def api_save_to_file():
 @app.route("/api/project/load/<file_name>", methods=["POST"])
 @login_required
 def api_load_project(file_name):
+    project = get_project()
+    project_id = project.get("project", {}).get("project_id")
+
     from services.project_storage_service import (
         load_project,
     )
@@ -386,17 +435,23 @@ def api_load_project(file_name):
         write_state(session, "project_history", [])
         remember_saved_project(file_name)
 
+        log_action("project_load", project_id=project_id, status="completed", details={"file_name": file_name})
+
         return jsonify({
             "ok": True,
             "message": result["message"],
         })
 
+    log_action("project_load", project_id=project_id, status="failed", details={"file_name": file_name, "message": result["message"]})
     return error_response(result["message"])
 
 
 @app.route("/api/project/delete/<file_name>", methods=["POST"])
 @login_required
 def api_delete_project(file_name):
+    project = get_project()
+    project_id = project.get("project", {}).get("project_id")
+
     from services.project_storage_service import (
         delete_project as delete_saved_project,
     )
@@ -411,8 +466,10 @@ def api_delete_project(file_name):
             project.get("project", {}).pop("saved_file", None)
             save_project_to_session(project)
 
+        log_action("project_delete", project_id=project_id, status="completed", details={"file_name": file_name})
         return jsonify(result)
 
+    log_action("project_delete", project_id=project_id, status="failed", details={"file_name": file_name, "message": result["message"]})
     return error_response(result["message"])
 
 
@@ -426,11 +483,34 @@ def api_list_projects():
 
     ensure_projects_directory()
 
+    log_action("project_list", status="completed", details={"count": len(list_saved_projects())})
+
     return jsonify(list_saved_projects())
+
+
+@app.route("/api/project/new", methods=["POST"])
+@login_required
+def api_new_project():
+    project = get_project()
+    project_id = project.get("project", {}).get("project_id")
+
+    write_state(session, "farm_project", create_empty_project())
+    write_state(session, "project_history", [])
+    forget_saved_project()
+
+    log_action("project_new", project_id=project_id, status="completed", details={})
+
+    return jsonify({
+        "ok": True,
+        "message": "New project created.",
+    })
 
 
 def _run_action(action_name, data):
     project = get_project()
+
+    project_id = project.get("project", {}).get("project_id")
+    log_action(action_name, project_id=project_id, status="started", details={"params_keys": list(data.keys())})
 
     save_history_snapshot(
         session,
@@ -605,6 +685,7 @@ def _run_action(action_name, data):
             "Action %s failed",
             action_name,
         )
+        log_action(action_name, project_id=project_id, status="error", details={"error": str(exc)})
 
         return error_response(
             f"Action '{action_name}' failed: {exc}",
@@ -613,6 +694,7 @@ def _run_action(action_name, data):
 
     if isinstance(result, tuple):
         # A handler rejected the request; leave the session untouched.
+        log_action(action_name, project_id=project_id, status="rejected", details={"reason": str(result)})
         return result
 
     save_project_to_session(project)
@@ -623,6 +705,8 @@ def _run_action(action_name, data):
         # A project that was already saved is refreshed in place, so the
         # KML data never has to be uploaded a second time.
         updated_file = sync_saved_project(project)
+
+    log_action(action_name, project_id=project_id, status="completed", details={"saved_file": updated_file, "ok": True})
 
     if isinstance(result, Response):
         return result
