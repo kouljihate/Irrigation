@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid p-3">
+    <div class="row mb-3">
+        <div class="col">
+            <div class="bilingual-heading" style="font-size: 2.5rem;">
+                <span class="en"><i class="fi fi-rr-house-door me-2"></i>Farm Irrigation Designer</span>
+            </div>
+            <div class="bilingual-heading" style="font-size: 2rem; margin-top: 0.5rem;">
+                <span class="ar" style="font-size: 2rem;">مصمم الري للمزارع</span>
+            </div>
+            <p class="text-muted bilingual"><span class="en">Use the navigation above to build your project:</span><span class="ar">استخدم التنقل أعلاه لبناء مشروعك:</span></p>
+            <ol class="breadcrumb bilingual-nav">
+                <li class="breadcrumb-item"><a href="/page/map">Project Map</a></li>
+                <li class="breadcrumb-item"><a href="/page/land_sectors">Land &amp; Sectors</a></li>
+                <li class="breadcrumb-item"><a href="/page/zones">Zones</a></li>
+                <li class="breadcrumb-item"><a href="/page/rows">Rows</a></li>
+                <li class="breadcrumb-item"><a href="/page/trees">Trees</a></li>
+                <li class="breadcrumb-item"><a href="/page/pipes">Pipes</a></li>
+                <li class="breadcrumb-item"><a href="/page/hydraulic">Hydraulic</a></li>
+                <li class="breadcrumb-item"><a href="/page/quantities">Quantities</a></li>
+                <li class="breadcrumb-item"><a href="/page/export">Export</a></li>
+            </ol>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en"><i class="fi fi-rr-folder2-open text-primary"></i> Quick Access</span><span class="ar">وصول سريع</span></h5>
+                    <a href="/page/storage" class="btn btn-outline-primary w-100 mb-1"><i class="fi fi-rr-folder2-open me-1"></i>Save / Load</a>
+                    <a href="/page/map" class="btn btn-outline-primary w-100 mb-1"><i class="fi fi-rr-map me-1"></i>Import KML</a>
+                    <a href="/page/land_sectors" class="btn btn-outline-primary w-100 mb-1"><i class="fi fi-rr-geo-alt me-1"></i>Set Up Land</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en"><i class="fi fi-rr-grid text-success"></i> Design Status</span><span class="ar">حالة التصميم</span></h5>
+                    <div id="designStatus"><p class="text-muted">Loading...</p></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en"><i class="fi fi-rr-info-circle text-info"></i> About</span><span class="ar">حول</span></h5>
+                    <p class="bilingual"><span class="en">Farm Irrigation Designer helps plan irrigation networks for agricultural fields.</span><span class="ar">يساعد مصمم الري للمزارع في تخطيط شبكات الري للحقول الزراعية.</span></p>
+                    <p class="bilingual"><span class="en"><strong>Version:</strong> <span data-app-version>—</span></span><span class="ar"><strong>الإصدار:</strong> <span data-app-version>—</span></span></p>
+                    <p class="bilingual"><span class="en"><strong>Workflow:</strong> Map → Land → Sectors → Zones → Rows → Pipes → Hydraulic → Export</span><span class="ar"><strong>سير العمل:</strong> الخريطة → الأرض → القطاعات → المناطق → الصفوف → الأنابيب → الهيدروليك → التصدير</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en"><i class="fi fi-rr-calendar-event me-2"></i> Project Data Summary</span><span class="ar">ملخص بيانات المشروع</span></h5>
+                    <div class="row" id="summaryCards">
+                        <div class="col-md-2 text-center"><div class="display-6 text-primary" id="metricSectors">0</div><small>Sectors</small></div>
+                        <div class="col-md-2 text-center"><div class="display-6 text-success" id="metricZones">0</div><small>Zones</small></div>
+                        <div class="col-md-2 text-center"><div class="display-6 text-info" id="metricRows">0</div><small>Rows</small></div>
+                        <div class="col-md-2 text-center"><div class="display-6 text-warning" id="metricTrees">0</div><small>Trees</small></div>
+                        <div class="col-md-2 text-center"><div class="display-6 text-danger" id="metricPipes">0</div><small>Pipes</small></div>
+                        <div class="col-md-2 text-center"><div class="display-6 text-dark" id="metricValves">0</div><small>Valves</small></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const esc = window.KML.escapeHtml;
+const $ = (id) => document.getElementById(id);
+
+const STEPS = [
+    { key: 'kml', label: 'KML imported', page: '/page/map', done: (s) => (s.land_area_m2 || 0) > 0 || s.sectors > 0 },
+    { key: 'sectors', label: 'Sectors defined', page: '/page/land_sectors', done: (s) => s.sectors > 0 },
+    { key: 'zones', label: 'Zones created', page: '/page/zones', done: (s) => s.zones > 0 },
+    { key: 'elevation', label: 'Elevation analysed', page: '/page/elevation', done: (s) => s.zones > 0 && s.zones_with_elevation === s.zones },
+    { key: 'rows', label: 'Rows generated', page: '/page/rows', done: (s) => s.rows > 0 },
+    { key: 'trees', label: 'Trees generated', page: '/page/trees', done: (s) => s.trees > 0 },
+    { key: 'pipes', label: 'Pipes generated', page: '/page/pipes', done: (s) => s.pipes > 0 },
+    { key: 'hydraulic', label: 'Hydraulic check passed', page: '/page/hydraulic', done: (s) => s.hydraulic_ok === true },
+];
+
+function renderDesignStatus(state) {
+    const done = STEPS.filter(step => step.done(state)).length;
+    const pct = Math.round((done / STEPS.length) * 100);
+
+    let html = '<div class="d-flex justify-content-between mb-1">' +
+        '<span class="text-muted small">Workflow complete</span>' +
+        '<span class="fw-bold small">' + done + '/' + STEPS.length + '</span></div>' +
+        '<div class="progress mb-2" style="height:8px;"><div class="progress-bar" style="width:' + pct + '%"></div></div>';
+
+    html += '<ul class="list-unstyled mb-0">';
+    STEPS.forEach(step => {
+        const ok = step.done(state);
+        html += '<li class="d-flex justify-content-between align-items-center py-1 small">' +
+            '<span>' + (ok
+                ? '<span class="text-success me-1">&#10003;</span>'
+                : '<span class="text-muted me-1">&#9675;</span>') +
+            esc(step.label) + '</span>' +
+            (ok ? '' : '<a class="btn btn-sm btn-outline-primary py-0" href="' + esc(step.page) + '">Go</a>') +
+        '</li>';
+    });
+    html += '</ul>';
+
+    $('designStatus').innerHTML = html;
+}
+
+async function updateMetrics() {
+    const summary = await window.KML.apiFetch('/api/project/summary');
+    const counts = summary.counts || {};
+
+    $('metricSectors').textContent = counts.sectors || 0;
+    $('metricZones').textContent = counts.zones || 0;
+    $('metricRows').textContent = counts.rows || 0;
+    $('metricTrees').textContent = counts.trees || 0;
+    $('metricPipes').textContent = counts.pipes || 0;
+    $('metricValves').textContent = counts.valves || 0;
+
+    const project = await window.KML.apiFetch('/api/project');
+    const zones = project.zones || [];
+
+    renderDesignStatus({
+        land_area_m2: (summary.areas_m2 || {}).land || 0,
+        sectors: counts.sectors || 0,
+        zones: counts.zones || 0,
+        zones_with_elevation: zones.filter(z => z.elevation_analysis).length,
+        rows: counts.rows || 0,
+        trees: counts.trees || 0,
+        pipes: counts.pipes || 0,
+        hydraulic_ok: project.hydraulic_results ? project.hydraulic_results.ok === true : false,
+    });
+}
+
+async function loadVersion() {
+    const health = await window.KML.apiFetch('/health');
+    document.querySelectorAll('[data-app-version]').forEach(node => {
+        node.textContent = health.version;
+    });
+}
+
+Promise.all([updateMetrics(), loadVersion()])
+    .catch((error) => { window.KML.toast(error.message, 'error'); });
+
+window.KML.startPolling(() => { updateMetrics().catch(() => {}); }, 15000);
+</script>
+{% endblock %}

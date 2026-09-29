@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid p-3">
+    <h2><div class="bilingual-heading"><span class="en"><i class="fi fi-rr-geo-alt me-2"></i>Land, Water Point, Basin &amp; Sectors</span><span class="ar">الأرض، نقطة المياه، الحوض والقطاعات</span></div></h2>
+
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">A. Assign Land Boundary</span><span class="ar">أ. تعيين حدود الأرض</span></h5>
+                    <div class="mb-2">
+                        <label class="form-label bilingual-label" for="landPolygonSelect"><span class="en">Select Land Polygon</span><span class="ar">اختر مضلع الأرض</span></label>
+                        <select id="landPolygonSelect" class="form-select"></select>
+                    </div>
+                    <button class="btn btn-primary w-100 mb-2" data-action="set_land_boundary"><i class="fi fi-rr-pin-map me-1"></i>Assign</button>
+                    <div id="landStatus"></div>
+                </div>
+            </div>
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">B. Water Point</span><span class="ar">ب. نقطة المياه</span></h5>
+                    <div class="mb-2">
+                        <label class="form-label bilingual-label" for="waterPointSelect"><span class="en">Select Well / Water Point</span><span class="ar">اختر البئر / نقطة المياه</span></label>
+                        <select id="waterPointSelect" class="form-select"></select>
+                    </div>
+                    <button class="btn btn-primary w-100 mb-2" data-action="set_water_point"><i class="fi fi-rr-droplet me-1"></i>Assign</button>
+                    <div id="waterStatus"></div>
+                </div>
+            </div>
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">C. Assign Basin</span><span class="ar">ج. تعيين الحوض</span></h5>
+                    <div class="mb-2">
+                        <label class="form-label bilingual-label" for="basinSelect"><span class="en">Select Basin Polygon</span><span class="ar">اختر مضلع الحوض</span></label>
+                        <select id="basinSelect" class="form-select"></select>
+                    </div>
+                    <button class="btn btn-primary w-100 mb-2" data-action="set_basin"><i class="fi fi-rr-droplet me-1"></i>Assign</button>
+                    <div id="basinStatus"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Farm Map</span><span class="ar">خريطة المزرعة</span></h5>
+                    <iframe id="mapFrame" src="/api/leaflet-map" title="Farm map" style="width:100%; height:500px; border:none;"></iframe>
+                </div>
+            </div>
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Current Assignments</span><span class="ar">التعيينات الحالية</span></h5>
+                    <div id="assignmentSummary"><p class="text-muted">Nothing assigned yet.</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5 class="card-title bilingual-card-title"><span class="en">D. Assign Sectors</span><span class="ar">د. تعيين القطاعات</span></h5>
+            <div class="row">
+                <div class="col-md-5">
+                    <label class="form-label bilingual-label" for="sectorPolygonSelect"><span class="en">Unused polygon</span><span class="ar">مضلع غير مستخدم</span></label>
+                    <select id="sectorPolygonSelect" class="form-select mb-2"></select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label bilingual-label" for="sectorNumber"><span class="en">Sector no.</span><span class="ar">رقم القطاع</span></label>
+                    <input type="number" id="sectorNumber" class="form-control mb-2" min="1" max="50" value="1">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">&nbsp;</label>
+                    <button class="btn btn-primary w-100 mb-2" data-action="add_sector"><i class="fi fi-rr-plus-circle me-1"></i>Add</button>
+                </div>
+            </div>
+            <div id="sectorStatus"></div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5 class="card-title bilingual-card-title"><span class="en">Assigned Sectors</span><span class="ar">القطاعات المعينة</span></h5>
+            <div id="sectorsTable"><p class="text-muted">No sectors assigned yet.</p></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <button class="btn btn-danger" data-action="clear_land_and_sector"><i class="fi fi-rr-trash me-1"></i>Clear land, water, basin &amp; sectors</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const esc = window.KML.escapeHtml;
+const $ = (id) => document.getElementById(id);
+
+function optionsFor(features, placeholder) {
+    if (!features.length) {
+        return '<option value="">' + esc(placeholder) + '</option>';
+    }
+    return '<option value="">' + esc(placeholder) + '</option>' + features.map(f =>
+        '<option value="' + esc(f.id) + '">' + esc(f.name || f.id) + '</option>'
+    ).join('');
+}
+
+function renderSummary(data) {
+    const rows = [];
+    const add = (label, value) => rows.push(
+        '<div class="d-flex justify-content-between border-bottom py-1">' +
+        '<span class="text-muted">' + esc(label) + '</span>' +
+        '<span>' + esc(value) + '</span></div>'
+    );
+
+    add('Land boundary', data.land ? (data.land.name || data.land.id) : 'Not set');
+    add('Land area', data.land && data.land.area_m2 ? (data.land.area_m2 / 10000).toFixed(2) + ' ha' : 'Not set');
+    add('Water point', data.water_points && data.water_points.length ? (data.water_points[0].name || data.water_points[0].id) : 'Not set');
+    add('Basins', String((data.basins || []).length));
+    add('Sectors', String((data.sectors || []).length));
+
+    $('assignmentSummary').innerHTML = rows.join('');
+}
+
+async function loadSelections() {
+    const data = await window.KML.apiFetch('/api/project');
+    const features = data.kml_features || [];
+    const polys = features.filter(f => f.geometry && f.geometry.type === 'Polygon');
+    const points = features.filter(f => f.geometry && f.geometry.type === 'Point');
+
+    const used = new Set();
+    if (data.land) { used.add(data.land.kml_feature_id || data.land.id); }
+    (data.basins || []).forEach(b => used.add(b.kml_feature_id || b.id));
+    (data.sectors || []).forEach(s => used.add(s.kml_feature_id || s.id));
+
+    const free = polys.filter(f => !used.has(f.id));
+
+    $('landPolygonSelect').innerHTML = optionsFor(free, 'Select polygon...');
+    $('basinSelect').innerHTML = optionsFor(free, 'Select polygon...');
+    $('sectorPolygonSelect').innerHTML = optionsFor(free, 'Select unused polygon...');
+    $('waterPointSelect').innerHTML = optionsFor(points, 'Select point...');
+
+    renderSummary(data);
+
+    const sectors = data.sectors || [];
+    const table = $('sectorsTable');
+
+    if (sectors.length === 0) {
+        table.innerHTML = '<p class="text-muted">No sectors assigned yet.</p>';
+    } else {
+        table.innerHTML = '<table class="table table-sm"><thead><tr>' +
+            '<th>ID</th><th>Sector no.</th><th>Name</th><th>Source KML</th><th>Area (ha)</th><th>Action</th>' +
+            '</tr></thead><tbody>' +
+            sectors.map(s => '<tr>' +
+                '<td>' + esc(s.id) + '</td>' +
+                '<td>' + esc(s.sector_number) + '</td>' +
+                '<td>' + esc(s.name || '') + '</td>' +
+                '<td>' + esc(s.kml_feature_id || '') + '</td>' +
+                '<td>' + (s.area_m2 ? (s.area_m2 / 10000).toFixed(2) : '-') + '</td>' +
+                '<td><button class="btn btn-sm btn-danger" data-remove-sector="' + esc(s.id) + '"><i class="fi fi-rr-trash"></i></button></td>' +
+            '</tr>').join('') +
+            '</tbody></table>';
+    }
+
+    return data;
+}
+
+async function runAction(action, body, statusId) {
+    try {
+        const result = await window.KML.action(action, body);
+        if (statusId) {
+            $(statusId).innerHTML = '<div class="alert alert-success">' + esc(result.message) + '</div>';
+        } else {
+            window.KML.toast(result.message, 'success');
+        }
+        await loadSelections();
+        window.KML.reloadMap('mapFrame');
+    } catch (error) {
+        if (statusId) {
+            $(statusId).innerHTML = '<div class="alert alert-danger">' + esc(error.message) + '</div>';
+        } else {
+            window.KML.toast(error.message, 'error');
+        }
+    }
+}
+
+document.addEventListener('click', async (event) => {
+    const removeButton = event.target.closest('[data-remove-sector]');
+    if (removeButton) {
+        const id = removeButton.getAttribute('data-remove-sector');
+        if (!confirm('Remove sector ' + id + '?')) { return; }
+        await runAction('remove_sector', { sector_id: id }, 'sectorStatus');
+        return;
+    }
+
+    const button = event.target.closest('[data-action]');
+    if (!button) { return; }
+
+    const action = button.getAttribute('data-action');
+
+    if (action === 'set_land_boundary') {
+        const id = $('landPolygonSelect').value;
+        if (!id) { window.KML.toast('Select a polygon first.', 'warning'); return; }
+        await runAction('set_land_boundary', { feature_id: id }, 'landStatus');
+    } else if (action === 'set_water_point') {
+        const id = $('waterPointSelect').value;
+        if (!id) { window.KML.toast('Select a point first.', 'warning'); return; }
+        await runAction('set_water_point', { feature_id: id }, 'waterStatus');
+    } else if (action === 'set_basin') {
+        const id = $('basinSelect').value;
+        if (!id) { window.KML.toast('Select a polygon first.', 'warning'); return; }
+        await runAction('set_basin', { feature_id: id }, 'basinStatus');
+    } else if (action === 'add_sector') {
+        const id = $('sectorPolygonSelect').value;
+        const num = parseInt($('sectorNumber').value, 10);
+        if (!id) { window.KML.toast('Select a polygon first.', 'warning'); return; }
+        if (!Number.isInteger(num) || num < 1) { window.KML.toast('Enter a valid sector number.', 'warning'); return; }
+        await runAction('add_sector', { feature_id: id, sector_number: num }, 'sectorStatus');
+    } else if (action === 'clear_land_and_sector') {
+        if (!confirm('Clear all land, water point, basin, and sector assignments?')) { return; }
+        await runAction('clear_land_and_sector', {}, 'sectorStatus');
+    }
+});
+
+window.KML.startPolling(() => { loadSelections().catch(() => {}); }, 15000);
+</script>
+{% endblock %}

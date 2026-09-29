@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid p-3">
+    <h2><div class="bilingual-heading"><span class="en"><i class="fi fi-rr-folder2-open me-2"></i>Project Storage</span><span class="ar">مخزن المشروع</span></div></h2>
+    <p class="text-muted bilingual"><span class="en">Save and load your irrigation design projects.</span><span class="ar">احفظ وتحميل مشاريع تصميم الري.</span></p>
+
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Current Project</span><span class="ar">المشروع الحالي</span></h5>
+                    <div class="mb-2">
+                        <label class="form-label bilingual-label" for="projectNameInput"><span class="en">Project Name</span><span class="ar">اسم المشروع</span></label>
+                        <input type="text" id="projectNameInput" class="form-control" autocomplete="off">
+                    </div>
+                    <div class="small text-muted mb-2" id="projectMeta"></div>
+                    <button class="btn btn-primary w-100 mb-1" data-action="save"><i class="fi fi-rr-disk me-1"></i>Save</button>
+                    <button class="btn btn-secondary w-100 mb-1" data-action="new"><i class="fi fi-rr-document me-1"></i>New project</button>
+                    <div id="storageResult"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Saved Projects</span><span class="ar">المشاريع المحفوظة</span></h5>
+                    <div id="savedProjectsList"><p class="text-muted">Loading...</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title bilingual-card-title"><span class="en">Portable Backup</span><span class="ar">نسخة احتياطية</span></h5>
+            <p class="text-muted small bilingual"><span class="en">Download the full project as JSON for backup or transfer to another machine.</span><span class="ar">نزّل المشروع كاملاً بصيغة JSON للنسخ الاحتياطي أو النقل إلى جهاز آخر.</span></p>
+            <a href="/api/project/download/json" class="btn btn-outline-info" download="farm_project.json"><i class="fi fi-rr-download me-1"></i>Download JSON</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const esc = window.KML.escapeHtml;
+const $ = (id) => document.getElementById(id);
+
+function formatDate(value) {
+    if (!value) { return ''; }
+    const date = new Date(value);
+    return isNaN(date.getTime()) ? '' : date.toLocaleString();
+}
+
+function renderResult(payload, level) {
+    const cls = level === 'error' ? 'danger' : (payload.ok ? 'success' : 'warning');
+    $('storageResult').innerHTML = '<div class="alert alert-' + cls + ' py-2">' + esc(payload.message) + '</div>';
+}
+
+async function loadProjects() {
+    const projects = await window.KML.apiFetch('/api/project/list');
+    const container = $('savedProjectsList');
+
+    if (!projects.length) {
+        container.innerHTML = '<p class="text-muted">No saved projects yet.</p>';
+        return;
+    }
+
+    container.innerHTML = projects.map(p => {
+        const file = String(p.file_name || '');
+        const name = p.project_name || file;
+        return '<div class="d-flex align-items-center border-bottom py-2">' +
+            '<div class="flex-grow-1">' +
+                '<div class="fw-bold">' + esc(name) + '</div>' +
+                '<small class="text-muted">' + esc(file) +
+                (p.saved_utc ? ' &middot; ' + esc(formatDate(p.saved_utc)) : '') + '</small>' +
+            '</div>' +
+            '<button class="btn btn-sm btn-success me-1" data-load-project="' + esc(file) + '" title="Load"><i class="fi fi-rr-upload"></i></button>' +
+            '<button class="btn btn-sm btn-danger" data-delete-project="' + esc(file) + '" title="Delete"><i class="fi fi-rr-trash"></i></button>' +
+        '</div>';
+    }).join('');
+}
+
+async function loadProjectMeta() {
+    const data = await window.KML.apiFetch('/api/project');
+    const meta = data.project || {};
+
+    const input = $('projectNameInput');
+    if (document.activeElement !== input) {
+        input.value = meta.name || '';
+    }
+
+    $('projectMeta').textContent = [
+        'ID: ' + (meta.project_id || '-'),
+        'Updated: ' + (formatDate(meta.updated_utc) || '-'),
+    ].join('  |  ');
+}
+
+document.addEventListener('click', async (event) => {
+    const loadButton = event.target.closest('[data-load-project]');
+    const deleteButton = event.target.closest('[data-delete-project]');
+
+    try {
+        if (loadButton) {
+            const file = loadButton.getAttribute('data-load-project');
+            if (!confirm('Load project "' + file + '"? Unsaved changes will be lost.')) { return; }
+            const result = await window.KML.apiFetch('/api/project/load/' + encodeURIComponent(file), { method: 'POST' });
+            renderResult(result.ok ? { ok: true, message: 'Loaded: ' + file } : result);
+            await refreshAll();
+            return;
+        }
+
+        if (deleteButton) {
+            const file = deleteButton.getAttribute('data-delete-project');
+            if (!confirm('Permanently delete project "' + file + '"?')) { return; }
+            const result = await window.KML.apiFetch('/api/project/delete/' + encodeURIComponent(file), { method: 'POST' });
+            renderResult(result.ok ? { ok: true, message: 'Deleted: ' + file } : result);
+            await loadProjects();
+            return;
+        }
+
+        const button = event.target.closest('[data-action]');
+        if (!button) { return; }
+
+        const action = button.getAttribute('data-action');
+
+        if (action === 'save') {
+            const name = $('projectNameInput').value.trim();
+            if (!name) { window.KML.toast('Enter a project name.', 'warning'); return; }
+            const result = await window.KML.apiFetch('/api/project/save', { method: 'POST', body: { name: name } });
+            renderResult(result);
+            await refreshAll();
+        } else if (action === 'new') {
+            if (!confirm('Create a new empty project? All unsaved data will be lost.')) { return; }
+            const result = await window.KML.apiFetch('/api/project/new', { method: 'POST' });
+            renderResult(result);
+            await refreshAll();
+        }
+    } catch (error) {
+        renderResult({ ok: false, message: error.message }, 'error');
+    }
+});
+
+async function refreshAll() {
+    await Promise.all([loadProjects(), loadProjectMeta()]);
+}
+
+refreshAll();
+window.KML.startPolling(() => { loadProjects().catch(() => {}); }, 20000);
+</script>
+{% endblock %}

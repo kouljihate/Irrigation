@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid p-3">
+    <h2><div class="bilingual-heading"><span class="en"><i class="fi fi-rr-tree me-2"></i>Trees &amp; Zone Water Demand</span><span class="ar">الأشجار ومطلب المياه للمنطقة</span></div></h2>
+
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Tree Configuration</span><span class="ar">تكوين الأشجار</span></h5>
+                    <div class="mb-2">
+                        <label class="form-label bilingual-label"><span class="en">Crop Type</span><span class="ar">نوع المحصول</span></label>
+                        <input type="text" id="cropType" class="form-control" value="Orchard">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label bilingual-label"><span class="en">Tree Spacing (m)</span><span class="ar">تباعد الأشجار (م)</span></label>
+                        <input type="number" id="treeSpacing" class="form-control" value="4.0" step="0.5">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label bilingual-label"><span class="en">End Offset (m)</span><span class="ar">الإزاحة النهائية (م)</span></label>
+                        <input type="number" id="endOffset" class="form-control" value="2.0" step="0.5">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label bilingual-label"><span class="en">Emitters per Tree</span><span class="ar">نقاط التفرع لكل شجرة</span></label>
+                        <input type="number" id="emitters" class="form-control" value="2" min="1" max="10">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label bilingual-label"><span class="en">Emitter Flow (L/h)</span><span class="ar">تدفق نقطة التفرع (لتر/ساعة)</span></label>
+                        <input type="number" id="emitterFlow" class="form-control" value="4.0" step="0.5">
+                    </div>
+                    <div class="mb-2"><strong class="bilingual"><span class="en">Flow per tree: <span data-flow-value>8.0</span> L/h</span><span class="ar">التدفق لكل شجرة: <span data-flow-value>8.0</span> لتر/ساعة</span></strong></div>
+                    <button class="btn btn-primary w-100 mb-2" data-action="create_trees_all"><i class="fi fi-rr-gear me-1"></i>Generate trees</button>
+                    <button class="btn btn-secondary w-100 mb-2" data-action="remove_all_trees"><i class="fi fi-rr-trash me-1"></i>Remove all trees</button>
+                    <div id="treeResult"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Farm Map</span><span class="ar">خريطة المزرعة</span></h5>
+                    <iframe id="mapFrame" src="/api/leaflet-map" title="Trees map" style="width:100%; height:550px; border:none;"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5 class="card-title bilingual-card-title"><span class="en">Zone Summary</span><span class="ar">ملخص المنطقة</span></h5>
+            <div id="zoneSummary"><p class="text-muted">No zone data.</p></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title bilingual-card-title"><span class="en">Overall Statistics</span><span class="ar">الإحصائيات العامة</span></h5>
+            <div class="row">
+                <div class="col-md-3 text-center"><div class="display-6 text-warning" id="totalTrees">0</div><small>Total Trees</small></div>
+                <div class="col-md-3 text-center"><div class="display-6 text-info" id="totalFlow">0</div><small>Total Flow (m³/h)</small></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const esc = window.KML.escapeHtml;
+const $ = (id) => document.getElementById(id);
+
+function alertHtml(payload, level) {
+    const cls = level === 'error' ? 'danger' : (payload.ok ? 'success' : 'warning');
+    let html = '<div class="alert alert-' + cls + '">' + esc(payload.message) + '</div>';
+    const details = payload.errors || [];
+    if (details.length) {
+        html += '<ul class="mb-0">';
+        details.forEach(e => { html += '<li>' + esc(e) + '</li>'; });
+        html += '</ul>';
+    }
+    return html;
+}
+
+function updateTreeFlowPreview() {
+    const emitters = parseInt($('emitters').value, 10) || 0;
+    const flow = parseFloat($('emitterFlow').value) || 0;
+    document.querySelectorAll('[data-flow-value]').forEach(node => {
+        node.textContent = (emitters * flow).toFixed(1);
+    });
+}
+
+$('emitters').addEventListener('input', updateTreeFlowPreview);
+$('emitterFlow').addEventListener('input', updateTreeFlowPreview);
+
+function renderZoneSummary(zones, trees) {
+    const container = $('zoneSummary');
+
+    if (!zones.length) {
+        container.innerHTML = '<p class="text-muted">No zone data.</p>';
+        return;
+    }
+
+    const byZone = new Map();
+    trees.forEach(t => {
+        if (!byZone.has(t.zone_id)) {
+            byZone.set(t.zone_id, { count: 0, flow_lph: 0, spacing: t.tree_spacing_m, emitters: t.emitters_per_tree, crop: t.crop_type });
+        }
+        const entry = byZone.get(t.zone_id);
+        entry.count += 1;
+        entry.flow_lph += t.tree_flow_lph || 0;
+    });
+
+    const num = (v, d) => (typeof v === 'number' ? v.toFixed(d) : '-');
+
+    container.innerHTML = '<div class="table-responsive"><table class="table table-sm"><thead><tr>' +
+        '<th>Zone</th><th>Trees</th><th>Spacing (m)</th><th>Emitters</th><th>Crop</th><th>Tree flow (l/h)</th><th>Zone flow (m&sup3;/h)</th>' +
+        '</tr></thead><tbody>' +
+        zones.map(z => {
+            const e = byZone.get(z.id) || {};
+            return '<tr>' +
+                '<td>' + esc(z.id) + '</td>' +
+                '<td>' + esc(e.count || 0) + '</td>' +
+                '<td>' + esc(num(e.spacing, 2)) + '</td>' +
+                '<td>' + esc(e.emitters != null ? e.emitters : '-') + '</td>' +
+                '<td>' + esc(e.crop || '-') + '</td>' +
+                '<td>' + esc(num(e.flow_lph, 1)) + '</td>' +
+                '<td>' + esc(num(z.target_flow_m3h, 3)) + '</td>' +
+            '</tr>';
+        }).join('') +
+        '</tbody></table></div>';
+}
+
+async function loadTreesData() {
+    const data = await window.KML.apiFetch('/api/project');
+    const zones = data.zones || [];
+    const trees = data.trees || [];
+
+    renderZoneSummary(zones, trees);
+
+    $('totalTrees').textContent = trees.length;
+    const totalFlow = zones.reduce((sum, z) => sum + (z.target_flow_m3h || 0), 0);
+    $('totalFlow').textContent = totalFlow.toFixed(2);
+}
+
+document.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-action]');
+    if (!button) { return; }
+
+    const action = button.getAttribute('data-action');
+    let body = {};
+
+    if (action === 'create_trees_all') {
+        const spacing = parseFloat($('treeSpacing').value);
+        const offset = parseFloat($('endOffset').value);
+        const crop = $('cropType').value;
+        const emitters = parseInt($('emitters').value, 10);
+        const flow = parseFloat($('emitterFlow').value);
+
+        if (!isFinite(spacing) || spacing <= 0) { window.KML.toast('Enter a valid tree spacing.', 'warning'); return; }
+        if (!isFinite(offset) || offset < 0) { window.KML.toast('Enter a valid end offset.', 'warning'); return; }
+        if (!isFinite(emitters) || emitters < 1) { window.KML.toast('Enter at least one emitter per tree.', 'warning'); return; }
+        if (!isFinite(flow) || flow <= 0) { window.KML.toast('Enter a valid emitter flow.', 'warning'); return; }
+
+        body = {
+            tree_spacing_m: spacing,
+            end_offset_m: offset,
+            crop_type: crop,
+            emitters_per_tree: emitters,
+            emitter_flow_lph: flow,
+        };
+    } else if (action === 'remove_all_trees') {
+        if (!confirm('Remove ALL trees?')) { return; }
+    } else {
+        return;
+    }
+
+    try {
+        $('treeResult').innerHTML = alertHtml(await window.KML.action(action, body));
+    } catch (error) {
+        $('treeResult').innerHTML = alertHtml(error.result || { ok: false, message: error.message }, 'error');
+    }
+
+    await loadTreesData();
+    window.KML.reloadMap('mapFrame');
+});
+
+updateTreeFlowPreview();
+loadTreesData();
+window.KML.startPolling(() => { loadTreesData().catch(() => {}); }, 20000);
+</script>
+{% endblock %}

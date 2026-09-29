@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid p-3">
+    <h2><div class="bilingual-heading"><span class="en"><i class="fi fi-rr-gauge me-2"></i>Hydraulic Checks</span><span class="ar">فحص هيدروليكي</span></div></h2>
+
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Available Source Flow</span><span class="ar">التدفق المتاح من المصدر</span></h5>
+                    <div class="display-5 text-primary" id="sourceFlow">&mdash;</div>
+                    <p class="text-muted mb-2 bilingual"><span class="en">Set in Project Settings</span><span class="ar">مُعين في إعدادات المشروع</span></p>
+                    <button class="btn btn-primary w-100" data-action="run"><i class="fi fi-rr-play-fill me-1"></i>Run hydraulic check</button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Hydraulic Status</span><span class="ar">الحالة الهيدروليكية</span></h5>
+                    <div id="hydraulicStatus"><p class="text-muted">Run the hydraulic check to see results.</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5 class="card-title bilingual-card-title"><span class="en">Zone Balance</span><span class="ar">توازن المناطق</span></h5>
+            <div id="zoneBalance"><p class="text-muted">No data yet.</p></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title bilingual-card-title"><span class="en">Pipe Velocity</span><span class="ar">سرعة الأنابيب</span></h5>
+            <div id="pipeVelocity"><p class="text-muted">No data yet.</p></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const esc = window.KML.escapeHtml;
+const $ = (id) => document.getElementById(id);
+const PIPE_LIMIT = 500;
+
+const num = (v, d) => (typeof v === 'number' ? v.toFixed(d) : '-');
+
+function listHtml(items) {
+    if (!items || !items.length) { return ''; }
+    return '<ul class="mb-0 mt-1">' +
+        items.map(m => '<li>' + esc(m) + '</li>').join('') +
+        '</ul>';
+}
+
+function renderReport(report) {
+    const status = $('hydraulicStatus');
+
+    const badge = report.ok
+        ? '<span class="badge bg-success">PASS</span>'
+        : '<span class="badge bg-danger">FAIL</span>';
+
+    const verdict = report.simultaneous_operation_possible
+        ? '<p class="mb-1 text-success">All zones can run simultaneously.</p>'
+        : '<p class="mb-1 text-danger">Demand exceeds the source &mdash; zones cannot all run at once.</p>';
+
+    status.innerHTML = '<div class="mb-2">' + badge + '</div>' +
+        '<p class="mb-1">' + esc(report.message) + '</p>' + verdict +
+        '<div class="table-responsive"><table class="table table-sm mb-0"><tbody>' +
+        '<tr><td>Source flow</td><td class="fw-bold">' + esc(num(report.source_flow_m3h, 3)) + ' m&sup3;/h</td></tr>' +
+        '<tr><td>Total demand</td><td class="fw-bold">' + esc(num(report.total_demand_m3h, 3)) + ' m&sup3;/h</td></tr>' +
+        '<tr><td>Margin</td><td class="fw-bold ' + (report.margin_m3h < 0 ? 'text-danger' : 'text-success') + '">' +
+            esc(num(report.margin_m3h, 3)) + ' m&sup3;/h</td></tr>' +
+        '</tbody></table></div>' +
+        (report.errors && report.errors.length
+            ? '<div class="alert alert-danger mt-2 mb-0"><strong>Errors</strong>' + listHtml(report.errors) + '</div>'
+            : '') +
+        (report.warnings && report.warnings.length
+            ? '<div class="alert alert-warning mt-2 mb-0"><strong>Warnings</strong>' + listHtml(report.warnings) + '</div>'
+            : '');
+}
+
+function renderZoneBalance(zones) {
+    const container = $('zoneBalance');
+
+    if (!zones || !zones.length) {
+        container.innerHTML = '<p class="text-muted">No zone data.</p>';
+        return;
+    }
+
+    container.innerHTML = '<div class="table-responsive"><table class="table table-sm"><thead><tr>' +
+        '<th>Zone</th><th>Trees</th><th>Flow (m&sup3;/h)</th><th>Elev. range (m)</th><th>Pressure (bar)</th><th>Notes</th>' +
+        '</tr></thead><tbody>' +
+        zones.map(z => '<tr>' +
+            '<td>' + esc(z.zone_id) + '</td>' +
+            '<td>' + esc(z.tree_count) + '</td>' +
+            '<td>' + esc(num(z.flow_m3h, 3)) + '</td>' +
+            '<td>' + esc(num(z.elevation_range_m, 2)) + '</td>' +
+            '<td>' + esc(num(z.static_pressure_bar, 3)) + '</td>' +
+            '<td>' + (z.warnings && z.warnings.length
+                ? '<i class="fi fi-rr-alert-triangle text-warning" title="' + esc(z.warnings.join(' ')) + '"></i>'
+                : '-') + '</td>' +
+        '</tr>').join('') +
+        '</tbody></table></div>';
+}
+
+function renderPipeVelocity(pipes) {
+    const container = $('pipeVelocity');
+
+    if (!pipes || !pipes.length) {
+        container.innerHTML = '<p class="text-muted">No pipe data.</p>';
+        return;
+    }
+
+    const overLimit = pipes.filter(p => p.velocity_ok === false).length;
+
+    const shown = pipes.slice(0, PIPE_LIMIT);
+    const notice = pipes.length > shown.length
+        ? '<p class="text-muted small">Showing the first ' + shown.length + ' of ' + pipes.length + ' pipes.</p>'
+        : '';
+
+    container.innerHTML = notice +
+        (overLimit
+            ? '<div class="alert alert-warning py-2">' + esc(overLimit) + ' pipe(s) exceed the recommended velocity.</div>'
+            : '<div class="alert alert-success py-2">All pipe velocities are within the recommended range.</div>') +
+        '<div class="table-responsive"><table class="table table-sm"><thead><tr>' +
+        '<th>Pipe</th><th>Type</th><th>Diameter</th><th>Length (m)</th><th>Flow (m&sup3;/h)</th><th>Velocity (m/s)</th><th>Status</th>' +
+        '</tr></thead><tbody>' +
+        shown.map(p => '<tr>' +
+            '<td>' + esc(p.pipe_id) + '</td>' +
+            '<td>' + esc(p.pipe_type || '-') + '</td>' +
+            '<td>' + esc(p.diameter_mm != null ? p.diameter_mm + ' mm' : '-') + '</td>' +
+            '<td>' + esc(num(p.length_m, 1)) + '</td>' +
+            '<td>' + esc(num(p.flow_m3h, 3)) + '</td>' +
+            '<td>' + esc(num(p.velocity_mps, 3)) + '</td>' +
+            '<td>' + (p.velocity_ok === false
+                ? '<span class="badge bg-danger">over</span>'
+                : '<span class="badge bg-success">ok</span>') + '</td>' +
+        '</tr>').join('') +
+        '</tbody></table></div>';
+}
+
+async function loadProjectInfo() {
+    const data = await window.KML.apiFetch('/api/project');
+    const flow = data.project ? data.project.source_flow_m3h : null;
+    $('sourceFlow').textContent = (typeof flow === 'number' ? num(flow, 2) : '—') + ' m³/h';
+}
+
+async function runHydraulic() {
+    try {
+        const report = await window.KML.apiFetch('/api/project/hydraulic');
+        renderReport(report);
+        renderZoneBalance(report.zones);
+        renderPipeVelocity(report.pipes);
+    } catch (error) {
+        $('hydraulicStatus').innerHTML = '<div class="alert alert-danger">' + esc(error.message) + '</div>';
+    }
+}
+
+document.addEventListener('click', (event) => {
+    if (event.target.closest('[data-action="run"]')) { runHydraulic(); }
+});
+
+loadProjectInfo();
+</script>
+{% endblock %}

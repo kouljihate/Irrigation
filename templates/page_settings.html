@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid p-3">
+    <h2><div class="bilingual-heading"><span class="en"><i class="fi fi-rr-gear me-2"></i>Settings</span><span class="ar">الإعدادات</span></div></h2>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5 class="card-title bilingual-card-title"><span class="en">Appearance</span><span class="ar">المظهر</span></h5>
+            <p class="text-muted small bilingual">
+                <span class="en">Themes load from <code>/static/themes/</code>. Only installed themes can be applied.</span>
+                <span class="ar">تُحمَّل السمات من <code>/static/themes/</code>. يمكن تطبيق السمات المثبتة فقط.</span>
+            </p>
+            <div class="row" id="themesGrid"><div class="col-12 text-muted">Loading themes...</div></div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Text Direction</span><span class="ar">اتجاه النص</span></h5>
+                    <p class="text-muted small bilingual">
+                        <span class="en">Switch the page layout direction. Both English and Arabic labels stay visible.</span>
+                        <span class="ar">بدّل اتجاه تخطيط الصفحة. تبقى التسميات الإنجليزية والعربية ظاهرة.</span>
+                    </p>
+                    <div class="btn-group w-100" role="group" aria-label="Text direction">
+                        <button class="btn btn-outline-primary" data-dir="ltr">English &mdash; LTR</button>
+                        <button class="btn btn-outline-primary" data-dir="rtl">العربية &mdash; RTL</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">System</span><span class="ar">النظام</span></h5>
+                    <div id="systemInfo"><p class="text-muted">Loading...</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title bilingual-card-title"><span class="en">Design Defaults</span><span class="ar">القيم الافتراضية للتصميم</span></h5>
+            <div class="mb-2">
+                <label class="form-label bilingual-label" for="sourceFlowInput">
+                    <span class="en">Available Source Flow (m&sup3;/h)</span>
+                    <span class="ar">التدفق المتاح من المصدر (م³/ساعة)</span>
+                </label>
+                <input type="number" id="sourceFlowInput" class="form-control" step="0.1" min="0">
+            </div>
+            <button class="btn btn-primary" data-action="save-source-flow"><i class="fi fi-rr-disk me-1"></i>Save source flow</button>
+            <div id="settingsResult"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const esc = window.KML.escapeHtml;
+const $ = (id) => document.getElementById(id);
+const THEME_LINK_ID = 'kml-theme-link';
+
+function themeCard(theme) {
+    if (!theme.available) {
+        return '<div class="col-md-3 mb-2">' +
+            '<div class="card h-100 opacity-50"><div class="card-body text-center py-3">' +
+            '<div class="fs-4">' + esc('–') + '</div>' +
+            '<h6 class="card-title small">' + esc(theme.name) + '</h6>' +
+            '<span class="badge bg-secondary">not installed</span>' +
+            '</div></div></div>';
+    }
+
+    return '<div class="col-md-3 mb-2">' +
+        '<div class="card h-100" data-apply-theme="' + esc(theme.index) + '" data-theme-url="' + esc(theme.url) + '" style="cursor:pointer;">' +
+        '<div class="card-body text-center py-3">' +
+        '<h6 class="card-title small">' + esc(theme.name) + '</h6>' +
+        '<span class="badge bg-secondary mb-2">' + esc(theme.slug) + '</span>' +
+        '<button class="btn btn-sm btn-primary w-100" data-apply-theme="' + esc(theme.index) + '">' +
+        '<i class="fi fi-rr-palette me-1"></i>Apply</button>' +
+        '</div></div></div>';
+}
+
+function applyTheme(index, url) {
+    let link = document.getElementById(THEME_LINK_ID);
+
+    if (!link) {
+        link = document.createElement('link');
+        link.id = THEME_LINK_ID;
+        link.rel = 'stylesheet';
+        document.head.appendChild(link);
+    }
+
+    link.href = url + '?t=' + Date.now();
+
+    try {
+        window.localStorage.setItem('kml-theme-index', String(index));
+    } catch (error) {
+        /* storage may be unavailable; the theme still applies for this session */
+    }
+
+    window.KML.toast('Theme applied: ' + index, 'success');
+}
+
+async function restoreTheme(themes) {
+    let saved = null;
+
+    try {
+        saved = window.localStorage.getItem('kml-theme-index');
+    } catch (error) {
+        saved = null;
+    }
+
+    if (saved === null) { return; }
+
+    const theme = themes.find(t => String(t.index) === String(saved));
+
+    if (theme && theme.available) {
+        applyTheme(theme.index, theme.url);
+    }
+}
+
+async function loadThemes() {
+    const themes = await window.KML.apiFetch('/api/theme/list');
+    $('themesGrid').innerHTML = themes.map(themeCard).join('');
+    await restoreTheme(themes);
+}
+
+async function loadSystemInfo() {
+    const health = await window.KML.apiFetch('/health');
+
+    const rows = [
+        ['Application', health.app],
+        ['Version', health.version],
+        ['Debug mode', health.debug ? 'ON' : 'OFF'],
+        ['Password protection', health.auth_enabled ? 'ON' : 'OFF'],
+        ['Python', health.python],
+    ];
+
+    $('systemInfo').innerHTML = rows.map(([label, value]) =>
+        '<div class="d-flex justify-content-between border-bottom py-1">' +
+        '<span class="text-muted">' + esc(label) + '</span>' +
+        '<span class="fw-bold">' + esc(value) + '</span></div>'
+    ).join('');
+}
+
+async function loadSourceFlow() {
+    const data = await window.KML.apiFetch('/api/project');
+    const value = data.project ? data.project.source_flow_m3h : null;
+    $('sourceFlowInput').value = (typeof value === 'number' ? value : 0);
+}
+
+document.addEventListener('click', async (event) => {
+    const themeButton = event.target.closest('[data-apply-theme]');
+    if (themeButton) {
+        const index = themeButton.getAttribute('data-apply-theme');
+        const url = themeButton.getAttribute('data-theme-url');
+        if (url) {
+            applyTheme(index, url);
+        }
+        return;
+    }
+
+    const dirButton = event.target.closest('[data-dir]');
+    if (dirButton) {
+        const dir = dirButton.getAttribute('data-dir');
+        document.documentElement.setAttribute('dir', dir);
+        document.documentElement.setAttribute('lang', dir === 'rtl' ? 'ar' : 'en');
+        try {
+            window.localStorage.setItem('kml-dir', dir);
+        } catch (error) {
+            /* storage may be unavailable */
+        }
+        return;
+    }
+
+    const actionButton = event.target.closest('[data-action="save-source-flow"]');
+    if (!actionButton) { return; }
+
+    const flow = parseFloat($('sourceFlowInput').value);
+
+    if (!isFinite(flow) || flow < 0) {
+        window.KML.toast('Enter a valid source flow.', 'warning');
+        return;
+    }
+
+    try {
+        const result = await window.KML.action('set_source_flow', { source_flow_m3h: flow });
+        $('settingsResult').innerHTML = '<div class="alert alert-success py-2 mt-2">' + esc(result.message) +
+            ' Recalculate pipe flows on the Pipes page.</div>';
+    } catch (error) {
+        $('settingsResult').innerHTML = '<div class="alert alert-danger py-2 mt-2">' +
+            esc(error.message || (error.result && error.result.message) || 'Could not save.') + '</div>';
+    }
+});
+
+try {
+    const savedDir = window.localStorage.getItem('kml-dir');
+    if (savedDir) {
+        document.documentElement.setAttribute('dir', savedDir);
+        document.documentElement.setAttribute('lang', savedDir === 'rtl' ? 'ar' : 'en');
+    }
+} catch (error) {
+    /* storage may be unavailable */
+}
+
+Promise.all([loadThemes(), loadSystemInfo(), loadSourceFlow()])
+    .catch((error) => { window.KML.toast(error.message, 'error'); });
+</script>
+{% endblock %}

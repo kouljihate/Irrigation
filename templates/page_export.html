@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid p-3">
+    <h2><div class="bilingual-heading"><span class="en"><i class="fi fi-rr-upload me-2"></i>Export</span><span class="ar">تصدير</span></div></h2>
+
+    <div class="row mb-3">
+        <div class="col-md-5">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Download</span><span class="ar">تحميل</span></h5>
+                    <p class="text-muted small" id="exportReadiness">Checking project data...</p>
+                    <div id="exportLinks"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-7">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Export Formats</span><span class="ar">تنسيقات التصدير</span></h5>
+                    <ul class="list-group" id="formatList">
+                        <li class="list-group-item bilingual" data-format="json"><span class="en"><strong>JSON</strong> - Full project data backup</span><span class="ar"><strong>JSON</strong> - نسخة احتياطية كاملة لبيانات المشروع</span></li>
+                        <li class="list-group-item bilingual" data-format="geojson"><span class="en"><strong>GeoJSON</strong> - GIS-compatible format</span><span class="ar"><strong>GeoJSON</strong> - تنسيق متوافق مع نظم المعلومات الجغرافية</span></li>
+                        <li class="list-group-item bilingual" data-format="kml"><span class="en"><strong>KML</strong> - Google Earth / Google Maps</span><span class="ar"><strong>KML</strong> - Google Earth / Google Maps</span></li>
+                        <li class="list-group-item bilingual" data-format="dxf"><span class="en"><strong>DXF</strong> - AutoCAD format</span><span class="ar"><strong>DXF</strong> - تنسيق أوتوكاد</span></li>
+                        <li class="list-group-item bilingual" data-format="csv"><span class="en"><strong>CSV</strong> - Spreadsheet data</span><span class="ar"><strong>CSV</strong> - بيانات الجداول</span></li>
+                        <li class="list-group-item bilingual" data-format="epanet"><span class="en"><strong>EPANET</strong> - Water network simulation</span><span class="ar"><strong>EPANET</strong> - محاكاة شبكة المياه</span></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const esc = window.KML.escapeHtml;
+const $ = (id) => document.getElementById(id);
+
+const FORMATS = [
+    { key: 'json', file: 'farm_project.json', icon: 'fi-rr-file-earmark-json', variant: 'primary', label: 'JSON backup' },
+    { key: 'geojson', file: 'farm_project.geojson', icon: 'fi-rr-geo-alt', variant: 'success', label: 'GeoJSON' },
+    { key: 'kml', file: 'farm_project.kml', icon: 'fi-rr-map', variant: 'outline-primary', label: 'KML' },
+    { key: 'dxf', file: 'farm_project.dxf', icon: 'fi-rr-vector-square', variant: 'outline-secondary', label: 'DXF' },
+    { key: 'csv', file: 'farm_project.csv', icon: 'fi-rr-file-spreadsheet', variant: 'outline-success', label: 'CSV' },
+    { key: 'epanet', file: 'farm_project.inp', icon: 'fi-rr-settings', variant: 'outline-info', label: 'EPANET' },
+];
+
+const REQUIREMENTS = {
+    json: () => true,
+    geojson: () => true,
+    kml: () => true,
+    dxf: (c) => c.pipes > 0 || c.rows > 0 || c.trees > 0,
+    csv: (c) => c.rows > 0 || c.trees > 0,
+    epanet: (c) => c.pipes > 0,
+};
+
+async function loadReadiness() {
+    const summary = await window.KML.apiFetch('/api/project/summary');
+    const counts = summary.counts || {};
+
+    $('exportReadiness').textContent =
+        counts.sectors + ' sectors, ' + counts.zones + ' zones, ' + counts.rows + ' rows, ' +
+        counts.trees + ' trees, ' + counts.pipes + ' pipes, ' + counts.valves + ' valves.';
+
+    const links = $('exportLinks');
+    links.innerHTML = '';
+
+    FORMATS.forEach(format => {
+        const ready = REQUIREMENTS[format.key](counts);
+        const variant = ready ? format.variant : 'outline-secondary';
+
+        const button = document.createElement('a');
+        button.href = '/api/project/download/' + format.key;
+        button.className = 'btn btn-' + variant + ' w-100 mb-2' + (ready ? '' : ' disabled');
+        button.setAttribute('download', format.file);
+        if (ready) {
+            button.title = 'Download ' + format.file;
+        } else {
+            button.setAttribute('aria-disabled', 'true');
+            button.title = 'Generate the required data first.';
+        }
+        button.innerHTML = '<i class="' + format.icon + ' me-1"></i>' + esc(format.label) +
+            (ready ? '' : ' <span class="badge bg-secondary">' + esc('unavailable') + '</span>');
+
+        links.appendChild(button);
+    });
+}
+
+loadReadiness();
+window.KML.startPolling(() => { loadReadiness().catch(() => {}); }, 20000);
+</script>
+{% endblock %}

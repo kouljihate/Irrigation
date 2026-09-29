@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid p-3">
+    <h2><div class="bilingual-heading"><span class="en"><i class="fi fi-rr-grid me-2"></i>Irrigation Zones</span><span class="ar">مناطق الري</span></div></h2>
+
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Auto Zone Generation</span><span class="ar">إنشاء المناطق تلقائياً</span></h5>
+                    <button class="btn btn-primary w-100 mb-2" data-action="create_3_zones_all"><i class="fi fi-rr-gear me-1"></i>Auto-create 3 zones per sector</button>
+                    <button class="btn btn-secondary w-100 mb-2" data-action="remove_all_zones"><i class="fi fi-rr-trash me-1"></i>Remove all zones</button>
+                    <div id="zoneBatchResult"></div>
+                </div>
+            </div>
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Manual Zone Creation</span><span class="ar">إنشاء منطقة يدوي</span></h5>
+                    <div class="mb-2">
+                        <label class="form-label bilingual-label"><span class="en">Select Sector</span><span class="ar">اختر القطاع</span></label>
+                        <select id="zoneSectorSelect" class="form-select"></select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label bilingual-label"><span class="en">Zone Number</span><span class="ar">رقم المنطقة</span></label>
+                        <select id="zoneNumberSelect" class="form-select"></select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label bilingual-label"><span class="en">Zone Name</span><span class="ar">اسم المنطقة</span></label>
+                        <input type="text" id="zoneName" class="form-control">
+                    </div>
+                    <button class="btn btn-primary w-100 mb-2" data-action="create_zone"><i class="fi fi-rr-plus-circle me-1"></i>Create zone</button>
+                    <div class="alert alert-info">Draw a polygon on the map to create a new zone. Zone must be inside the sector boundary.</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Farm Map</span><span class="ar">خريطة المزرعة</span></h5>
+                    <iframe id="mapFrame" src="/api/leaflet-map" title="Zone map" style="width:100%; height:550px; border:none;"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5 class="card-title bilingual-card-title"><span class="en">Zone Progress</span><span class="ar">تقدم المنطقة</span></h5>
+            <div id="zoneProgress"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title bilingual-card-title"><span class="en">Zone Design Results</span><span class="ar">نتائج تصميم المنطقة</span></h5>
+            <div id="zoneResults"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const esc = window.KML.escapeHtml;
+const $ = (id) => document.getElementById(id);
+let lastProject = null;
+
+function renderProgress(sectors, zones) {
+    const bySector = new Map();
+    sectors.forEach(s => bySector.set(s.id, 0));
+    zones.forEach(z => bySector.set(z.sector_id, (bySector.get(z.sector_id) || 0) + 1));
+
+    const target = sectors.length * 3;
+    const pct = target ? Math.min(100, Math.round((zones.length / target) * 100)) : 0;
+
+    let html = '<div class="d-flex justify-content-between mb-1">' +
+        '<span>Created zones: <strong>' + esc(zones.length) + '</strong> / ' + esc(target) + '</span>' +
+        '<span>' + esc(pct) + '%</span></div>' +
+        '<div class="progress" style="height:20px;"><div class="progress-bar" style="width:' + pct + '%">' +
+        esc(zones.length) + '/' + esc(target) + '</div></div>';
+
+    if (sectors.length) {
+        html += '<table class="table table-sm mt-3 mb-0"><thead><tr><th>Sector</th><th>Zones</th><th>Target</th><th>Status</th></tr></thead><tbody>';
+        sectors.forEach(s => {
+            const count = bySector.get(s.id) || 0;
+            const status = count >= 3
+                ? '<span class="badge bg-success">complete</span>'
+                : (count > 0 ? '<span class="badge bg-warning text-dark">partial</span>' : '<span class="badge bg-secondary">empty</span>');
+            html += '<tr><td>' + esc(s.id) + '</td><td>' + esc(count) + '</td><td>3</td><td>' + status + '</td></tr>';
+        });
+        html += '</tbody></table>';
+    }
+
+    $('zoneProgress').innerHTML = html;
+}
+
+async function loadZoneData() {
+    const data = await window.KML.apiFetch('/api/project');
+    lastProject = data;
+
+    const sectors = data.sectors || [];
+    const zones = data.zones || [];
+
+    $('zoneSectorSelect').innerHTML = '<option value="">Select sector...</option>' +
+        sectors.map(s => '<option value="' + esc(s.id) + '">' + esc(s.id) + '</option>').join('');
+
+    renderProgress(sectors, zones);
+    updateZoneNumbers();
+
+    const results = $('zoneResults');
+    if (zones.length === 0) {
+        results.innerHTML = '<p class="text-muted">No zones created yet.</p>';
+    } else {
+        results.innerHTML = '<table class="table table-sm"><thead><tr><th>Zone ID</th><th>Name</th><th>Sector</th>' +
+            '<th>Area (ha)</th><th>Flow (m&sup3;/h)</th><th>Rows</th><th>Action</th></tr></thead><tbody>' +
+            zones.map(z => '<tr>' +
+                '<td>' + esc(z.id) + '</td>' +
+                '<td>' + esc(z.name || '') + '</td>' +
+                '<td>' + esc(z.sector_id) + '</td>' +
+                '<td>' + esc(z.area_m2 ? (z.area_m2 / 10000).toFixed(2) : '-') + '</td>' +
+                '<td>' + esc(typeof z.target_flow_m3h === 'number' ? z.target_flow_m3h.toFixed(3) : '-') + '</td>' +
+                '<td>' + esc(z.row_count != null ? z.row_count : '-') + '</td>' +
+                '<td><button class="btn btn-sm btn-danger" data-remove-zone="' + esc(z.id) + '"><i class="fi fi-rr-trash"></i></button></td>' +
+            '</tr>').join('') +
+            '</tbody></table>';
+    }
+}
+
+function updateZoneNumbers() {
+    if (!lastProject) { return; }
+    const sectorId = $('zoneSectorSelect').value;
+    const select = $('zoneNumberSelect');
+
+    if (!sectorId) {
+        select.innerHTML = '<option value="">Select a sector first...</option>';
+        return;
+    }
+
+    const used = (lastProject.zones || [])
+        .filter(z => z.sector_id === sectorId)
+        .map(z => z.zone_number);
+
+    const available = [];
+    for (let n = 1; n <= 50; n += 1) {
+        if (!used.includes(n)) { available.push(n); }
+    }
+
+    select.innerHTML = '<option value="">Select...</option>' +
+        available.map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('');
+}
+
+function alertHtml(payload, level) {
+    const cls = level === 'error' ? 'danger' : (payload.ok ? 'success' : 'warning');
+    let html = '<div class="alert alert-' + cls + '">' + esc(payload.message) + '</div>';
+    const details = payload.errors || [];
+    if (details.length) {
+        html += '<ul class="mb-0">';
+        details.forEach(e => { html += '<li>' + esc(e) + '</li>'; });
+        html += '</ul>';
+    }
+    return html;
+}
+
+async function run(action, body) {
+    return window.KML.action(action, body);
+}
+
+document.addEventListener('click', async (event) => {
+    const removeButton = event.target.closest('[data-remove-zone]');
+    if (removeButton) {
+        const id = removeButton.getAttribute('data-remove-zone');
+        if (!confirm('Remove zone ' + id + '? Its pipes, valves, rows and trees will be removed too.')) { return; }
+        try {
+            const result = await run('remove_zone', { zone_id: id });
+            $('zoneBatchResult').innerHTML = alertHtml(result);
+        } catch (error) {
+            $('zoneBatchResult').innerHTML = alertHtml(error.result || { ok: false, message: error.message }, 'error');
+        }
+        await loadZoneData();
+        window.KML.reloadMap('mapFrame');
+        return;
+    }
+
+    const button = event.target.closest('[data-action]');
+    if (!button) { return; }
+
+    const action = button.getAttribute('data-action');
+    let payload = null;
+    let body = {};
+
+    if (action === 'create_3_zones_all') {
+        payload = 'create_3_zones_all';
+    } else if (action === 'remove_all_zones') {
+        if (!confirm('Remove ALL zones together with their pipes, valves, rows and trees?')) { return; }
+        payload = 'remove_all_zones';
+    } else if (action === 'create_zone') {
+        const sectorId = $('zoneSectorSelect').value;
+        const zoneNum = parseInt($('zoneNumberSelect').value, 10);
+        const name = $('zoneName').value;
+
+        if (!sectorId) { window.KML.toast('Select a sector.', 'warning'); return; }
+        if (!Number.isInteger(zoneNum)) { window.KML.toast('Select a zone number.', 'warning'); return; }
+
+        payload = 'create_zone';
+        body = { sector_id: sectorId, zone_number: zoneNum, name: name };
+    } else {
+        return;
+    }
+
+    try {
+        $('zoneBatchResult').innerHTML = alertHtml(await run(payload, body));
+    } catch (error) {
+        $('zoneBatchResult').innerHTML = alertHtml(error.result || { ok: false, message: error.message }, 'error');
+    }
+
+    await loadZoneData();
+    window.KML.reloadMap('mapFrame');
+});
+
+$('zoneSectorSelect').addEventListener('change', updateZoneNumbers);
+
+loadZoneData();
+window.KML.startPolling(() => { loadZoneData().catch(() => {}); }, 15000);
+</script>
+{% endblock %}

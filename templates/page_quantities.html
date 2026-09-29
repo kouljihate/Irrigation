@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid p-3">
+    <h2><div class="bilingual-heading"><span class="en"><i class="fi fi-rr-cart3 me-2"></i>Quantities &amp; Bill of Materials</span><span class="ar">الكميات وقائمة المواد</span></div></h2>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5 class="card-title bilingual-card-title"><span class="en">Project Summary</span><span class="ar">ملخص المشروع</span></h5>
+            <div id="summaryContent"><p class="text-muted">Loading...</p></div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5 class="card-title bilingual-card-title"><span class="en">Water Demand by Zone</span><span class="ar">مطلب المياه حسب المنطقة</span></h5>
+            <div id="demandContent"><p class="text-muted">Loading...</p></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title bilingual-card-title"><span class="en">Bill of Materials</span><span class="ar">قائمة المواد</span></h5>
+            <div id="bomContent"><p class="text-muted">Loading...</p></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const esc = window.KML.escapeHtml;
+const $ = (id) => document.getElementById(id);
+
+const num = (v, d) => (typeof v === 'number' ? v.toLocaleString(undefined, { maximumFractionDigits: d === undefined ? 2 : d }) : (v == null ? '—' : v));
+
+function tile(label, value) {
+    return '<div class="col-6 col-md-3 mb-2">' +
+        '<div class="text-muted small">' + esc(label) + '</div>' +
+        '<div class="fs-4 fw-bold">' + esc(value) + '</div>' +
+    '</div>';
+}
+
+function renderSummary(summary) {
+    const counts = summary.counts || {};
+    const areas = summary.areas_m2 || {};
+    const lengths = summary.lengths_m || {};
+
+    $('summaryContent').innerHTML =
+        '<p class="mb-2 fw-bold">' + esc(summary.project && summary.project.name || 'Untitled project') + '</p>' +
+        '<div class="row">' +
+            tile('Sectors', counts.sectors || 0) +
+            tile('Zones', counts.zones || 0) +
+            tile('Rows', counts.rows || 0) +
+            tile('Trees', counts.trees || 0) +
+            tile('Pipes', counts.pipes || 0) +
+            tile('Valves', counts.valves || 0) +
+            tile('Fittings', counts.fittings || 0) +
+        '</div>' +
+        '<hr>' +
+        '<div class="row">' +
+            tile('Land area (ha)', num(((areas.land || 0) / 10000), 2)) +
+            tile('Sector area (ha)', num(((areas.sectors || 0) / 10000), 2)) +
+            tile('Zone area (ha)', num(((areas.zones || 0) / 10000), 2)) +
+            tile('Row length (m)', num(lengths.rows || 0, 1)) +
+            tile('Pipe length (m)', num(lengths.pipes || 0, 1)) +
+        '</div>';
+}
+
+function renderDemand(demand) {
+    const container = $('demandContent');
+
+    if (!demand) {
+        container.innerHTML = '<p class="text-muted">No demand data.</p>';
+        return;
+    }
+
+    const verdict = demand.sufficient_supply
+        ? '<div class="alert alert-success py-2">Source flow covers the total demand.</div>'
+        : '<div class="alert alert-danger py-2">Source flow is below the total demand (margin ' +
+          esc(num(demand.margin_m3h, 3)) + ' m&sup3;/h).</div>';
+
+    const zones = demand.zones || [];
+
+    const body = zones.length
+        ? '<div class="table-responsive"><table class="table table-sm"><thead><tr>' +
+          '<th>Zone</th><th>Sector</th><th>Area (m&sup2;)</th><th>Trees</th><th>Flow (m&sup3;/h)</th>' +
+          '</tr></thead><tbody>' +
+          zones.map(z => '<tr>' +
+            '<td>' + esc(z.Zone) + '</td>' +
+            '<td>' + esc(z.Sector) + '</td>' +
+            '<td>' + esc(num(z['Area (m2)'], 2)) + '</td>' +
+            '<td>' + esc(z.Trees) + '</td>' +
+            '<td>' + esc(num(z['Flow (m3/h)'], 3)) + '</td>' +
+          '</tr>').join('') +
+          '</tbody></table></div>'
+        : '<p class="text-muted">No zones yet.</p>';
+
+    container.innerHTML = verdict +
+        '<div class="row mb-2">' +
+            tile('Total trees', demand.total_trees || 0) +
+            tile('Total demand (m³/h)', num(demand.total_demand_m3h, 3)) +
+            tile('Source flow (m³/h)', num(demand.source_flow_m3h, 3)) +
+            tile('Margin (m³/h)', num(demand.margin_m3h, 3)) +
+        '</div>' +
+        body;
+}
+
+function renderBom(rows) {
+    const container = $('bomContent');
+
+    if (!rows || !rows.length) {
+        container.innerHTML = '<p class="text-muted">No pipes yet, so there is nothing to list.</p>';
+        return;
+    }
+
+    const total = rows.reduce((sum, r) => sum + (r['Total length (m)'] || 0), 0);
+
+    container.innerHTML = '<div class="table-responsive"><table class="table table-sm"><thead><tr>' +
+        '<th>Diameter (mm)</th><th>Material</th><th>Count</th><th>Total length (m)</th>' +
+        '</tr></thead><tbody>' +
+        rows.map(r => '<tr>' +
+            '<td>' + esc(r['Diameter (mm)']) + '</td>' +
+            '<td>' + esc(r.Material) + '</td>' +
+            '<td>' + esc(r.Count) + '</td>' +
+            '<td>' + esc(num(r['Total length (m)'], 2)) + '</td>' +
+        '</tr>').join('') +
+        '<tr class="fw-bold"><td colspan="2">Total</td><td>' + esc(rows.reduce((s, r) => s + r.Count, 0)) + '</td>' +
+        '<td>' + esc(num(total, 2)) + '</td></tr>' +
+        '</tbody></table></div>';
+}
+
+async function loadSummary() {
+    const summary = await window.KML.apiFetch('/api/project/summary');
+    renderSummary(summary);
+    renderDemand(summary.demand);
+    renderBom(summary.bill_of_materials);
+}
+
+loadSummary();
+window.KML.startPolling(() => { loadSummary().catch(() => {}); }, 20000);
+</script>
+{% endblock %}

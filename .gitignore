@@ -1,0 +1,48 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.so
+.Python
+
+# Test and type caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Runtime data: saved projects, sessions, logs and generated exports
+data/
+
+# Scratch / throwaway debugging scripts
+_dxfprobe*.py
+_elevprobe*.py
+_zoneprobe.py
+_smoke*.py
+fix_layout.py
+
+# Exports and uploads produced at runtime
+*.kml
+*.kmz
+*.dxf
+*.dwg
+*.xlsx
+*.epanet
+*.inp
+
+# Local environment overrides
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

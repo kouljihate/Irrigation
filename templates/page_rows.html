@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid p-3">
+    <h2><div class="bilingual-heading"><span class="en"><i class="fi fi-rr-list-task me-2"></i>Planting Rows</span><span class="ar">صفوف الزراعة</span></div></h2>
+
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Row Configuration</span><span class="ar">تكوين الصفوف</span></h5>
+                    <div class="mb-2">
+                        <label class="form-label bilingual-label"><span class="en">Row Spacing (m)</span><span class="ar">تباعد الصفوف (م)</span></label>
+                        <input type="number" id="rowSpacing" class="form-control" value="4.0" step="0.5">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label bilingual-label"><span class="en">Headland (m)</span><span class="ar">الأرض الفاصلة (م)</span></label>
+                        <input type="number" id="headland" class="form-control" value="2.0" step="0.5">
+                    </div>
+                    <button class="btn btn-primary w-100 mb-2" data-action="create_rows_all"><i class="fi fi-rr-gear me-1"></i>Generate rows</button>
+                    <button class="btn btn-secondary w-100 mb-2" data-action="remove_all_rows"><i class="fi fi-rr-trash me-1"></i>Remove all rows</button>
+                    <div id="rowResult"></div>
+                </div>
+            </div>
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Zone Angles</span><span class="ar">زوايا المناطق</span></h5>
+                    <div id="zoneAngles"><p class="text-muted">No zone data.</p></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Farm Map</span><span class="ar">خريطة المزرعة</span></h5>
+                    <iframe id="mapFrame" src="/api/leaflet-map" title="Rows map" style="width:100%; height:550px; border:none;"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title bilingual-card-title"><span class="en">Current Rows</span><span class="ar">الصفوف الحالية</span></h5>
+            <div id="rowsTable"><p class="text-muted">No rows generated yet.</p></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const esc = window.KML.escapeHtml;
+const $ = (id) => document.getElementById(id);
+const ROW_LIMIT = 400;
+
+const num = (v, digits) => (typeof v === 'number' ? v.toFixed(digits) : '-');
+
+function alertHtml(payload, level) {
+    const cls = level === 'error' ? 'danger' : (payload.ok ? 'success' : 'warning');
+    let html = '<div class="alert alert-' + cls + '">' + esc(payload.message) + '</div>';
+    const details = payload.errors || [];
+    if (details.length) {
+        html += '<ul class="mb-0">';
+        details.forEach(e => { html += '<li>' + esc(e) + '</li>'; });
+        html += '</ul>';
+    }
+    return html;
+}
+
+function renderZoneAngles(zones) {
+    const analysed = zones.filter(z => z.elevation_analysis);
+    const container = $('zoneAngles');
+
+    if (!analysed.length) {
+        container.innerHTML = '<p class="text-muted">Run elevation analysis first.</p>';
+        return;
+    }
+
+    container.innerHTML = '<table class="table table-sm"><thead><tr><th>Zone</th><th>Row angle (&deg;)</th><th>Slope (%)</th></tr></thead><tbody>' +
+        analysed.map(z => {
+            const a = z.elevation_analysis;
+            return '<tr><td>' + esc(z.id) + '</td>' +
+                '<td>' + esc(num(a.recommended_row_angle_degrees, 1)) + '</td>' +
+                '<td>' + esc(num(a.slope_percent, 1)) + '</td></tr>';
+        }).join('') +
+        '</tbody></table>';
+}
+
+function renderRows(rows) {
+    const table = $('rowsTable');
+
+    if (!rows.length) {
+        table.innerHTML = '<p class="text-muted">No rows generated yet.</p>';
+        return;
+    }
+
+    const shown = rows.slice(0, ROW_LIMIT);
+    const notice = rows.length > shown.length
+        ? '<p class="text-muted small">Showing the first ' + shown.length + ' of ' + rows.length +
+          ' rows. Export the full set from the Export page.</p>'
+        : '';
+
+    table.innerHTML = notice +
+        '<div class="table-responsive"><table class="table table-sm"><thead><tr>' +
+        '<th>Row ID</th><th>Sector</th><th>Zone</th><th>Length (m)</th><th>Spacing (m)</th><th>Angle (&deg;)</th>' +
+        '</tr></thead><tbody>' +
+        shown.map(row => '<tr>' +
+            '<td>' + esc(row.id) + '</td>' +
+            '<td>' + esc(row.sector_id) + '</td>' +
+            '<td>' + esc(row.zone_id) + '</td>' +
+            '<td>' + esc(num(row.length_m, 1)) + '</td>' +
+            '<td>' + esc(num(row.spacing_m, 1)) + '</td>' +
+            '<td>' + esc(num(row.direction_degrees, 1)) + '</td>' +
+        '</tr>').join('') +
+        '</tbody></table></div>';
+}
+
+async function loadRowsData() {
+    const data = await window.KML.apiFetch('/api/project');
+    renderZoneAngles(data.zones || []);
+    renderRows(data.rows || []);
+}
+
+document.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-action]');
+    if (!button) { return; }
+
+    const action = button.getAttribute('data-action');
+    let body = {};
+
+    if (action === 'create_rows_all') {
+        const spacing = parseFloat($('rowSpacing').value);
+        const headland = parseFloat($('headland').value);
+
+        if (!isFinite(spacing) || spacing <= 0) { window.KML.toast('Enter a valid row spacing.', 'warning'); return; }
+        if (!isFinite(headland) || headland < 0) { window.KML.toast('Enter a valid headland.', 'warning'); return; }
+
+        body = { row_spacing_m: spacing, headland_m: headland };
+    } else if (action === 'remove_all_rows') {
+        if (!confirm('Remove ALL planting rows?')) { return; }
+    } else {
+        return;
+    }
+
+    try {
+        $('rowResult').innerHTML = alertHtml(await window.KML.action(action, body));
+    } catch (error) {
+        $('rowResult').innerHTML = alertHtml(error.result || { ok: false, message: error.message }, 'error');
+    }
+
+    await loadRowsData();
+    window.KML.reloadMap('mapFrame');
+});
+
+loadRowsData();
+window.KML.startPolling(() => { loadRowsData().catch(() => {}); }, 15000);
+</script>
+{% endblock %}

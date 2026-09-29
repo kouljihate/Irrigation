@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid p-3">
+    <h2><div class="bilingual-heading"><span class="en"><i class="fi fi-rr-mountain me-2"></i>Elevation &amp; Row Orientation</span><span class="ar">الارتفاع واتجاه الصفوف</span></div></h2>
+
+    <div class="row mb-3">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Automatic Terrain Analysis</span><span class="ar">تحليل التضاريس التلقائي</span></h5>
+                    <p class="text-muted bilingual"><span class="en">For each zone, the system fits a least-squares terrain plane to the KML elevation vertices near that zone, then recommends planting rows perpendicular to the downhill direction.</span><span class="ar">لكل منطقة، يحسب النظام اتجاه المنحدر من قيم الارتفاع KML، ثم يوصي بزراعة الصفوف عمودياً على ذلك الاتجاه.</span></p>
+                    <button class="btn btn-primary w-100 mb-2" data-action="analyze_elevation"><i class="fi fi-rr-graph-up me-1"></i>Run elevation analysis</button>
+                    <div id="elevationResult"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Source Data</span><span class="ar">بيانات المصدر</span></h5>
+                    <div id="elevationStats"><p class="text-muted">Loading...</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title bilingual-card-title"><span class="en">Zone Elevation Results</span><span class="ar">نتائج ارتفاع المناطق</span></h5>
+            <div id="elevationTable"><p class="text-muted">Run elevation analysis to see results.</p></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const esc = window.KML.escapeHtml;
+const $ = (id) => document.getElementById(id);
+
+function statRow(label, value) {
+    return '<div class="d-flex justify-content-between border-bottom py-1">' +
+        '<span class="text-muted">' + esc(label) + '</span>' +
+        '<span class="fw-bold">' + esc(value) + '</span></div>';
+}
+
+function renderResult(payload, level) {
+    const cls = level === 'error' ? 'danger' : (payload.ok ? 'success' : 'warning');
+    let html = '<div class="alert alert-' + cls + '">' + esc(payload.message) + '</div>';
+    const details = payload.errors || [];
+    if (details.length) {
+        html += '<ul class="mb-0">';
+        details.forEach(e => { html += '<li>' + esc(e) + '</li>'; });
+        html += '</ul>';
+    }
+    return html;
+}
+
+async function runAnalysis() {
+    try {
+        const result = await window.KML.action('analyze_elevation');
+        $('elevationResult').innerHTML = renderResult(result);
+    } catch (error) {
+        $('elevationResult').innerHTML = renderResult(
+            error.result || { ok: false, message: error.message },
+            'error',
+        );
+    }
+    await loadElevationData();
+    window.KML.reloadMap('mapFrame');
+}
+
+async function loadElevationData() {
+    const [project, inventory] = await Promise.all([
+        window.KML.apiFetch('/api/project'),
+        window.KML.apiFetch('/api/project/elevation'),
+    ]);
+
+    $('elevationStats').innerHTML =
+        statRow('KML features', inventory.kml_feature_count) +
+        statRow('Elevation vertices found', inventory.elevation_point_count) +
+        statRow('Total zones', inventory.zone_count) +
+        statRow('Zones analysed', inventory.analysed_zone_count) +
+        statRow('Zones awaiting analysis', inventory.failed_zone_ids.length);
+
+    const zones = (project.zones || []).filter(z => z.elevation_analysis);
+
+    if (zones.length === 0) {
+        $('elevationTable').innerHTML = '<p class="text-muted">Run elevation analysis to see results.</p>';
+        return;
+    }
+
+    const fmt = (v) => (typeof v === 'number' ? v.toFixed(1) : '-');
+
+    const body = zones.map(z => {
+        const a = z.elevation_analysis || {};
+        const warn = a.warning
+            ? '<i class="fi fi-rr-alert-triangle text-warning" title="' + esc(a.warning) + '"></i>'
+            : '';
+        return '<tr>' +
+            '<td>' + esc(z.id) + ' ' + warn + '</td>' +
+            '<td>' + esc(a.elevation_point_count) + '</td>' +
+            '<td>' + esc(a.inside_zone_point_count) + '</td>' +
+            '<td>' + esc(fmt(a.minimum_elevation_m)) + '</td>' +
+            '<td>' + esc(fmt(a.maximum_elevation_m)) + '</td>' +
+            '<td>' + esc(fmt(a.elevation_range_m)) + '</td>' +
+            '<td>' + esc(fmt(a.slope_percent)) + '</td>' +
+            '<td>' + esc(fmt(a.downhill_bearing_degrees)) + '</td>' +
+            '<td>' + esc(fmt(a.recommended_row_angle_degrees)) + '</td>' +
+        '</tr>';
+    }).join('');
+
+    $('elevationTable').innerHTML = '<table class="table table-sm"><thead><tr>' +
+        '<th>Zone</th><th>Points</th><th>Inside</th><th>Min (m)</th><th>Max (m)</th>' +
+        '<th>Range (m)</th><th>Slope (%)</th><th>Downhill (&deg;)</th><th>Row angle (&deg;)</th>' +
+        '</tr></thead><tbody>' + body + '</tbody></table>';
+}
+
+document.addEventListener('click', (event) => {
+    if (event.target.closest('[data-action="analyze_elevation"]')) {
+        runAnalysis();
+    }
+});
+
+loadElevationData();
+</script>
+{% endblock %}

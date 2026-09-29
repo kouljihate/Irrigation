@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid p-3">
+    <h2><div class="bilingual-heading"><span class="en"><i class="fi fi-rr-map me-2"></i>Project Map &amp; KML Import</span><span class="ar">خريطة المشروع واستيراد KML</span></div></h2>
+
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Import KML</span><span class="ar">استيراد KML</span></h5>
+                    <input type="file" id="kmlFileInput" accept=".kml" class="form-control mb-2">
+                    <button class="btn btn-primary w-100" id="importKmlBtn"><i class="fi fi-rr-upload me-1"></i>Import</button>
+                    <div id="kmlStatus" class="mt-2"></div>
+                </div>
+            </div>
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Imported KML Features</span><span class="ar">ميزات KML المستوردة</span></h5>
+                    <div id="kmlFeaturesList"><p class="text-muted">No KML features imported yet.</p></div>
+                </div>
+            </div>
+            <div class="card mt-3" id="kmlDetailCard" style="display:none;">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">KML Details</span><span class="ar">تفاصيل KML</span></h5>
+                    <div id="kmlDetailInfo"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title"><span class="en">Farm Map</span><span class="ar">خريطة المزرعة</span></h5>
+                    <iframe id="mapFrame" src="/api/leaflet-map" title="Farm map" style="width:100%; height:600px; border:none;"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const esc = window.KML.escapeHtml;
+
+function showKmlDetails(data) {
+    const card = document.getElementById('kmlDetailCard');
+    const info = document.getElementById('kmlDetailInfo');
+    card.style.display = 'block';
+    const rows = [];
+    const add = (label, value) => rows.push(
+        '<div class="d-flex align-items-center mb-1"><span class="badge bg-neon me-2">' + esc(label) + '</span><span>' + esc(value) + '</span></div>'
+    );
+    add('POINT', (data.point_count || 0) + ' point feature(s)');
+    add('LINE', (data.line_count || 0) + ' path(s)/canal(s)');
+    add('POLYGON', (data.polygon_count || 0) + ' polygon(s)');
+    add('LAND', (data.land_count || 0) + ' land boundary');
+    add('WATER', (data.water_point_count || 0) + ' water point(s)');
+    add('BASIN', (data.basin_count || 0) + ' basin(s)');
+    add('SECTOR', (data.sector_count || 0) + ' sector(s)');
+    info.innerHTML = rows.join('');
+}
+
+async function loadFeatures() {
+    const data = await window.KML.apiFetch('/api/project');
+    const features = data.kml_features || [];
+    const container = document.getElementById('kmlFeaturesList');
+
+    if (features.length === 0) {
+        container.innerHTML = '<p class="text-muted">No KML features imported yet.</p>';
+        return;
+    }
+
+    container.innerHTML = features.map(f => {
+        const coordinates = f.geometry && f.geometry.coordinates;
+        const count = Array.isArray(coordinates) ? coordinates.length : 0;
+        return '<div class="d-flex align-items-center mb-1 p-2" style="background:rgba(0,240,255,0.05);border-radius:var(--dark-radius);">' +
+            '<span class="badge bg-neon me-2">' + esc(f.geometry?.type || 'Unknown') + '</span>' +
+            '<div><strong>' + esc(f.name || f.id || 'Unnamed') + '</strong><br>' +
+            '<small class="text-muted">' + esc(f.id || '') + ' | ' + count + ' coords</small></div>' +
+        '</div>';
+    }).join('');
+}
+
+async function importKml() {
+    const input = document.getElementById('kmlFileInput');
+    if (!input.files.length) {
+        window.KML.toast('Please select a KML file first.', 'warning');
+        return;
+    }
+
+    const file = input.files[0];
+    const status = document.getElementById('kmlStatus');
+    status.innerHTML = '';
+
+    try {
+        const buffer = await file.arrayBuffer();
+        const bytes = window.KML.escapeHtml;
+        void bytes;
+        const data = await window.KML.action('import_kml', {
+            kml_bytes: arrayBufferToBase64(buffer)
+        });
+        status.innerHTML = '<div class="alert alert-success">' + esc(data.message) + '</div>';
+        showKmlDetails(data);
+        window.KML.reloadMap('mapFrame');
+        await loadFeatures();
+    } catch (error) {
+        status.innerHTML = '<div class="alert alert-danger">' + esc(error.message) + '</div>';
+    }
+}
+
+function arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.byteLength; i += chunk) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
+}
+
+document.getElementById('importKmlBtn').addEventListener('click', importKml);
+document.getElementById('kmlFileInput').addEventListener('change', function () {
+    if (this.files.length) { importKml(); }
+});
+
+loadFeatures();
+</script>
+{% endblock %}

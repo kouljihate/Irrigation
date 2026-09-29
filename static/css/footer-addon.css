@@ -1,0 +1,18 @@
+
+/* --- Footer Version Badge --- */
+footer .badge {
+    font-family: 'Orbitron', sans-serif !important;
+    font-size: 0.7rem;
+    letter-spacing: 2px;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+}
+
+footer .badge:hover {
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.5);
+}
+
+/* --- Footer Fix --- */
+footer .row {
+    align-items: center;
+}

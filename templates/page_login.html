@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container-fluid p-3">
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title bilingual-card-title">
+                        <span class="en"><i class="fi fi-rr-lock me-2"></i>Sign in</span>
+                        <span class="ar">تسجيل الدخول</span>
+                    </h5>
+                    {% if error %}
+                    <div class="alert alert-danger">{{ error }}</div>
+                    {% endif %}
+                    <form method="post" action="/login">
+                        <div class="mb-3">
+                            <label class="form-label" for="password">Password</label>
+                            <input type="password" class="form-control" id="password" name="password" autocomplete="current-password" required autofocus>
+                        </div>
+                        <button class="btn btn-primary w-100" type="submit"><i class="fi fi-rr-sign-in-alt me-1"></i>Sign in</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

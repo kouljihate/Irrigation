@@ -1,0 +1,8 @@
+:root { --bs-body-bg: #0f0a1a; --bs-body-color: #e8e0ff; }
+body { background: #0f0a1a !important; }
+.neon-border { border-color: rgba(255, 0, 255, 0.3) !important; }
+.neon-text { color: #ff00ff !important; }
+.navbar { background: rgba(10, 5, 15, 0.95) !important; }
+.card { background: #150f1a !important; border-color: rgba(255, 0, 255, 0.15) !important; }
+.card-header { background: linear-gradient(90deg, rgba(255, 0, 255, 0.1), rgba(0, 240, 255, 0.1)) !important; }
+.btn-primary { background: linear-gradient(135deg, #bf00ff, #ff00ff) !important; }
