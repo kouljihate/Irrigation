@@ -5,6 +5,22 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.7]
+
+### Changed
+
+- Action logs now appear in the console (stdout) in addition to the
+  rotating file, so they are visible during development and when running
+  the server directly.
+
+## [2.2.6]
+
+### Changed
+
+- Footer split into three columns with the app version displayed in the
+  right column. The version is now dynamic (reads `APP_VERSION` from
+  `app_factory.py`) instead of being hardcoded.
+
 ## [2.2.5]
 
 ### Added

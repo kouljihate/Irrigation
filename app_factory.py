@@ -61,25 +61,30 @@ def _configure_logging(app):
 
     log_file = os.path.join(log_dir, "actions.log")
 
-    handler = logging.handlers.RotatingFileHandler(
+    file_handler = logging.handlers.RotatingFileHandler(
         log_file,
         maxBytes=5 * 1024 * 1024,
         backupCount=5,
         encoding="utf-8",
     )
 
+    console_handler = logging.StreamHandler(sys.stdout)
+
     formatter = logging.Formatter(
         "%(asctime)s %(levelname)s %(name)s %(message)s",
         datefmt="%Y-%m-%dT%H:%M:%S%z",
     )
-    handler.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
 
     action_logger = logging.getLogger("actions")
     action_logger.setLevel(logging.INFO)
-    action_logger.addHandler(handler)
+    action_logger.addHandler(file_handler)
+    action_logger.addHandler(console_handler)
     action_logger.propagate = False
 
-    app.logger.addHandler(handler)
+    app.logger.addHandler(file_handler)
+    app.logger.addHandler(console_handler)
     app.logger.setLevel(logging.INFO)
 
     return action_logger
@@ -148,7 +153,7 @@ PROTECTED_ENDPOINTS = {
     "export",
 }
 
-APP_VERSION = "2.2.5"
+APP_VERSION = "2.2.7"
 
 THEME_NAMES = [
     "cyber-dark",
@@ -299,6 +304,7 @@ def inject_template_globals():
     return {
         "auth_enabled": auth_enabled(),
         "is_authenticated": is_authenticated(),
+        "APP_VERSION": APP_VERSION,
     }
 
 
