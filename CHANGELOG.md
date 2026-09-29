@@ -5,6 +5,43 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0]
+
+Interface fixes for the header, storage actions and the map.
+
+### Fixed
+
+- The loading overlay no longer sticks. Three `showLoading()` calls (a
+  capture-phase click listener, a `window.fetch` monkey-patch and
+  `apiFetch`) were balanced by only two `hideLoading()` calls, so every
+  button click leaked a pending request. Because `body.loading` sets
+  `pointer-events: none` across the whole page, the overlay never
+  cleared and the interface became unresponsive. `apiFetch` is now the
+  only caller, and it hides in a `finally` block, so a failed request
+  cannot leave the overlay stuck. A 30-second watchdog force-clears it
+  as a failsafe.
+- Importing a KML file ran twice: selecting a file fired the `change`
+  handler and the Import button fired a second time. Only the button
+  triggers an import now.
+- `/api/leaflet-map` is no longer unusable on large projects. Every tree
+  was drawn as its own `folium.CircleMarker` with a popup and tooltip,
+  roughly 1.5 KB of inline JavaScript each. 38,820 trees produced 58.8 MB
+  of HTML and took 60s to generate, and 288,243 trees exceeded a 300s
+  timeout. Above 2,000 trees the map now draws them on a single canvas
+  that redraws on `moveend`, `zoomend` and `resize`. 38,820 trees render
+  as 841 KB in 0.27s, and 288,243 trees in 7.6s. Per-tree popups are
+  unchanged at or below the threshold.
+
+### Changed
+
+- The brand title and the Home button moved from the header into the
+  body title, which is now the Home link. The header keeps the Arabic
+  brand, settings and log out. The per-page name is shown on its own
+  line under the body title.
+- The storage actions sit on a single row. The New project button was
+  removed from the interface for now; `POST /api/project/new` is
+  unchanged and still available.
+
 ## [2.0.0]
 
 Complete rewrite of the application from Streamlit to Flask. This is a

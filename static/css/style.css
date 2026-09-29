@@ -1162,6 +1162,10 @@ pre {
     letter-spacing: 1px;
 }
 .body-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
     font-family: 'Orbitron', sans-serif;
     font-size: 1.15rem;
     font-weight: 700;
@@ -1170,8 +1174,40 @@ pre {
     letter-spacing: 4px;
     text-transform: uppercase;
     text-align: center;
-    margin-bottom: 1rem;
+    margin-bottom: 0.25rem;
     animation: title-glow 2s ease-in-out infinite alternate;
+}
+.body-title-home {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 auto;
+    border-radius: var(--dark-radius);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    background: rgba(0, 240, 255, 0.08);
+    color: var(--neon-cyan);
+    text-shadow: none;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+.body-title-home:hover {
+    background: rgba(255, 0, 255, 0.1);
+    border-color: rgba(255, 0, 255, 0.4);
+    color: var(--neon-magenta) !important;
+    box-shadow: 0 0 12px rgba(255, 0, 255, 0.2);
+}
+.body-page-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--neon-magenta);
+    text-shadow: 0 0 8px rgba(255, 0, 255, 0.35);
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    text-align: center;
+    margin-bottom: 1rem;
 }
 @keyframes title-glow {
     0% { opacity: 0.7; text-shadow: 0 0 5px rgba(0, 240, 255, 0.3); }

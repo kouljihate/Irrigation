@@ -29,11 +29,8 @@
     <header class="header-neon fixed-top">
         <div class="container-fluid">
             <div class="header-inner">
-                <div class="header-col header-left">
-                    <span class="header-en"><i class="fi fi-rr-droplet me-2"></i>FARM IRRIGATION DESIGNER</span>
-                </div>
+                <div class="header-col header-left"></div>
                 <div class="header-col header-middle">
-                    <a class="header-btn" href="/" title="Home"><i class="fi fi-rr-home"></i></a>
                     {% if auth_enabled %}
                         {% if is_authenticated %}
                             <form method="post" action="/logout" class="d-inline">
@@ -78,7 +75,11 @@
 
     <div class="content-area" style="margin-top: 10px; min-height: calc(100vh - 130px);">
         <div class="container-fluid p-3">
-            <div class="body-title">{{ page_title|default("FARM IRRIGATION DESIGNER")|upper }}</div>
+            <div class="body-title">
+                <a class="body-title-home" href="/" title="Home"><i class="fi fi-rr-home"></i></a>
+                <span><i class="fi fi-rr-droplet me-2"></i>FARM IRRIGATION DESIGNER</span>
+            </div>
+            <div class="body-page-title">{{ page_title|default("FARM IRRIGATION DESIGNER")|upper }}</div>
             {% block content %}{% endblock %}
         </div>
     </div>
