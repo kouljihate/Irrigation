@@ -165,26 +165,45 @@ $('kmlFeaturesList').addEventListener('click', (event) => {
 });
 
 function syncImportButton() {
-    const file = $('kmlFileInput').files[0];
+    const fileInput = $('kmlFileInput');
+    if (!fileInput) { return; }
+    const file = fileInput.files[0];
     const label = $('kmlSelectedFile');
     const button = $('importKmlBtn');
 
+    if (!button) { return; }
     button.disabled = !file;
 
     if (file) {
-        label.textContent = 'Selected: ' + file.name + ' (' + formatSize(file.size) + ')';
-        label.classList.add('d-none');
+        if (label) {
+            label.textContent = 'Selected: ' + file.name + ' (' + formatSize(file.size) + ')';
+            label.classList.add('d-none');
+        }
         return;
     }
 
-    label.textContent = 'No file selected.';
-    label.classList.remove('d-none');
+    if (label) {
+        label.textContent = 'No file selected.';
+        label.classList.remove('d-none');
+    }
 }
 
-const fileInput = $('kmlFileInput');
-fileInput.addEventListener('change', syncImportButton);
-fileInput.addEventListener('input', syncImportButton);
-syncImportButton();
+function initFileInput() {
+    const fileInput = $('kmlFileInput');
+    if (!fileInput) {
+        console.warn('kmlFileInput not found');
+        return;
+    }
+    fileInput.addEventListener('change', syncImportButton);
+    fileInput.addEventListener('input', syncImportButton);
+    syncImportButton();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initFileInput);
+} else {
+    initFileInput();
+}
 
 async function importKml() {
     const input = $('kmlFileInput');

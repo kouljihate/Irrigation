@@ -5,6 +5,15 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.3]
+
+### Fixed
+
+- The Upload button now reliably enables when a KML file is chosen. The
+  file-input listener is attached after the DOM is ready and guards
+  against missing elements, preventing silent failures on slow loads or
+  cached pages.
+
 ## [2.2.2]
 
 ### Fixed

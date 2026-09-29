@@ -93,7 +93,7 @@ PROTECTED_ENDPOINTS = {
     "export",
 }
 
-APP_VERSION = "2.2.2"
+APP_VERSION = "2.2.3"
 
 THEME_NAMES = [
     "cyber-dark",
