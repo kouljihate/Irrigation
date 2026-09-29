@@ -11,7 +11,7 @@
                     <input type="file" id="kmlFileInput" accept=".kml" class="form-control mb-2">
                     <div class="small text-muted mb-2" id="kmlSelectedFile">No file selected.</div>
                     <div class="small text-muted mb-2" id="kmlProjectState"></div>
-                    <button class="btn btn-primary w-100" id="importKmlBtn"><i class="fi fi-rr-upload me-1"></i>Upload and Draw</button>
+                    <button class="btn btn-primary w-100" id="importKmlBtn" disabled><i class="fi fi-rr-upload me-1"></i>Upload and Draw</button>
                     <div id="kmlStatus" class="mt-2"></div>
                 </div>
             </div>
@@ -164,13 +164,24 @@ $('kmlFeaturesList').addEventListener('click', (event) => {
     if (panel) { panel.classList.toggle('d-none'); }
 });
 
-$('kmlFileInput').addEventListener('change', (event) => {
-    const file = event.target.files[0];
+function syncImportButton() {
+    const file = $('kmlFileInput').files[0];
     const label = $('kmlSelectedFile');
-    label.textContent = file
-        ? 'Selected: ' + file.name + ' (' + formatSize(file.size) + ')'
-        : 'No file selected.';
-});
+    const button = $('importKmlBtn');
+
+    button.disabled = !file;
+
+    if (file) {
+        label.textContent = 'Selected: ' + file.name + ' (' + formatSize(file.size) + ')';
+        label.classList.add('d-none');
+        return;
+    }
+
+    label.textContent = 'No file selected.';
+    label.classList.remove('d-none');
+}
+
+$('kmlFileInput').addEventListener('change', syncImportButton);
 
 async function importKml() {
     const input = $('kmlFileInput');

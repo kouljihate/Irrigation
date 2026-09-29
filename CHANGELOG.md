@@ -5,6 +5,14 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1]
+
+### Changed
+
+- The Upload button on the Map page is disabled until a KML file is chosen.
+  When a file is selected the "No file selected" label is hidden, so the
+  interface stays clean until an actual file is ready.
+
 ## [2.2.0]
 
 Optional project saving, a KML upload that reports and draws everything it
