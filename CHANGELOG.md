@@ -5,6 +5,18 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1]
+
+### Changed
+
+- Removed the short page name that appeared under the body title. Every
+  page already shows a full bilingual heading with an icon, so the name
+  was duplicated. The body title is now the Home link and brand only,
+  and the per-page bilingual heading is the single page title. The
+  browser tab title is unchanged.
+- Deleted the now-unused `.body-page-title` rule rather than leaving it
+  hidden.
+
 ## [2.1.0]
 
 Interface fixes for the header, storage actions and the map.

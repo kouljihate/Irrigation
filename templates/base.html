@@ -16,12 +16,12 @@
     <div class="scanlines"></div>
 
     <div id="loading-overlay">
+        <div class="loading-subtext fs-3"> مشغول</div>
         <div class="loading-container">
             <div class="loading-spinner"></div>
             <div class="loading-spinner-inner"></div>
         </div>
         <div class="loading-text">Processing</div>
-        <div class="loading-subtext">جاري المعالجة</div>
     </div>
 
     <div id="toast-stack" class="toast-stack" aria-live="polite" aria-atomic="true"></div>
@@ -79,7 +79,6 @@
                 <a class="body-title-home" href="/" title="Home"><i class="fi fi-rr-home"></i></a>
                 <span><i class="fi fi-rr-droplet me-2"></i>FARM IRRIGATION DESIGNER</span>
             </div>
-            <div class="body-page-title">{{ page_title|default("FARM IRRIGATION DESIGNER")|upper }}</div>
             {% block content %}{% endblock %}
         </div>
     </div>

@@ -1198,17 +1198,6 @@ pre {
     color: var(--neon-magenta) !important;
     box-shadow: 0 0 12px rgba(255, 0, 255, 0.2);
 }
-.body-page-title {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: var(--neon-magenta);
-    text-shadow: 0 0 8px rgba(255, 0, 255, 0.35);
-    letter-spacing: 4px;
-    text-transform: uppercase;
-    text-align: center;
-    margin-bottom: 1rem;
-}
 @keyframes title-glow {
     0% { opacity: 0.7; text-shadow: 0 0 5px rgba(0, 240, 255, 0.3); }
     100% { opacity: 1; text-shadow: 0 0 20px rgba(0, 240, 255, 0.8), 0 0 40px rgba(0, 240, 255, 0.4); }

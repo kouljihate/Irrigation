@@ -5,7 +5,7 @@ survey data. Import a KML, define land, water source, basin and sectors, then
 generate zones, planting rows, trees, pipe networks and control assemblies —
 and export the result to KML, DXF, GeoJSON, CSV and EPANET.
 
-**Version: 2.1.0** · Flask 3 + Bootstrap 5
+**Version: 2.1.1** · Flask 3 + Bootstrap 5
 
 > **Note on branches.** `main` holds the current Flask application (v2).
 > The original Streamlit prototype (v1) is preserved on the
